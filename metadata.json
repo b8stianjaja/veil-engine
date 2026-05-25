@@ -1,0 +1,6 @@
+{
+  "name": "Veil Engine Studio",
+  "description": "Elite 2.5D Split-Pipeline Game Engine featuring a 3D Layout Editor and a 2D hand-drawn sprite runtime simulation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

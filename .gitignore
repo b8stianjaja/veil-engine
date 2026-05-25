@@ -1,0 +1,19 @@
+# Node / Frontend
+node_modules/
+dist/
+build/
+coverage/
+*.log
+
+# OS / IDEs
+.DS_Store
+.vscode/
+.idea/
+
+# Environment Variables
+.env*
+!.env.example
+
+# Tauri / Rust Specifics
+src-tauri/target/
+src-tauri/binaries/
