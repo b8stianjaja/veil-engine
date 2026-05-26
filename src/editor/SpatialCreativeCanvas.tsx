@@ -8,9 +8,18 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
-import { OrbitControls, TransformControls, Grid, Line } from '@react-three/drei';
+import { OrbitControls, TransformControls, Grid, Line, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { Entity, GeometryType, DrawingStroke } from '../types';
+import { useSpatialEditorStore } from '../app/store';
+import { 
+  Undo, Layers, Eye, EyeOff, Lock, Unlock, Pencil, Eraser, 
+  Sparkles, Trash2, Maximize2, Camera, Navigation, Plus,
+  Compass, Crosshair
+} from 'lucide-react';
+
+// Injecting pre-rendered asset templates from SgAssets registry
+import { HeroKnight, StonePillar, GoldStar, SpikeTrap, CrystalRotator, ScenicTree } from '../components/SgAssets';
 
 interface SpatialCreativeCanvasProps {
   entities: Record<string, Entity>;
@@ -178,7 +187,7 @@ function DepthLayerDividers() {
   );
 }
 
-// Model mesh depending on geometric shape type
+// Model mesh mapping relying on behavior, hand-drawn overlays, and geometric shape type
 function EntityMesh({ entity, isSelected }: { entity: Entity; isSelected: boolean }) {
   const meshColor = isSelected ? '#7C3AED' : entity.color || '#7C3AED';
 
@@ -199,27 +208,41 @@ function EntityMesh({ entity, isSelected }: { entity: Entity; isSelected: boolea
       break;
   }
 
+  // Determine if this entity archetype has a hand-drawn asset ready for overlay
+  const hasAsset = entity.assetFilename !== null || entity.behavior !== 'STATIC' || entity.name.toLowerCase().includes('tree');
+
   return (
     <mesh castShadow receiveShadow>
       {geom}
       <meshStandardMaterial
         color={meshColor}
-        roughness={0.2}
-        metalness={0.5}
-        wireframe={entity.behavior === 'TRIGGER'}
-        transparent={entity.behavior === 'TRIGGER'}
-        opacity={entity.behavior === 'TRIGGER' ? 0.35 : 1.0}
+        roughness={0.4}
+        metalness={0.2}
+        wireframe={entity.behavior === 'TRIGGER' || hasAsset}
+        transparent={entity.behavior === 'TRIGGER' || hasAsset}
+        // Subdue the heavy box colliders if an asset visual is occupying this node
+        opacity={hasAsset ? (isSelected ? 0.6 : 0.15) : (entity.behavior === 'TRIGGER' ? 0.35 : 1.0)}
       />
+      
+      {/* Visual Asset Consolidation Overlay (Using DOM billboarding) */}
+      {hasAsset && (
+        <Html transform occlude scale={0.5} position={[0, 0, 0]} distanceFactor={12} zIndexRange={[100, 0]}>
+          <div 
+            className="w-32 h-32 flex items-center justify-center pointer-events-none select-none drop-shadow-xl" 
+            style={{ transform: 'translate3d(0,0,0)' }}
+          >
+            {entity.behavior === 'PLAYER' && <HeroKnight isMoving={false} color={entity.color} />}
+            {entity.behavior === 'COLLECTIBLE' && <GoldStar />}
+            {entity.behavior === 'HAZARD' && <SpikeTrap />}
+            {entity.behavior === 'ROTATOR' && <CrystalRotator color={entity.color} />}
+            {entity.behavior === 'STATIC' && entity.name.toLowerCase().includes('tree') && <ScenicTree />}
+            {entity.behavior === 'STATIC' && !entity.name.toLowerCase().includes('tree') && <StonePillar color={entity.color} />}
+          </div>
+        </Html>
+      )}
     </mesh>
   );
 }
-
-import { useSpatialEditorStore } from '../app/store';
-import { 
-  Undo, Layers, Eye, EyeOff, Lock, Unlock, Pencil, Eraser, 
-  Sparkles, Trash2, Maximize2, Camera, Navigation, Plus,
-  Compass, Crosshair
-} from 'lucide-react';
 
 export default function SpatialCreativeCanvas({
   entities,
@@ -2295,7 +2318,7 @@ export default function SpatialCreativeCanvas({
                 </span>
                 {hoverCoords ? (
                   <span className="text-purple-400 font-semibold">
-                    X: <span className="font-extrabold text-[#9562FF]">{hoverCoords[0]}</span> | Y: <span className="font-extrabold text-[#9562FF]">{hoverCoords[1]}</span>
+                    X: <span className="font-extrabold text-[#9562FF]">{hoverCoords?.[0]}</span> | Y: <span className="font-extrabold text-[#9562FF]">{hoverCoords?.[1]}</span>
                   </span>
                 ) : (
                   <span>Hover grid to show coordinates</span>

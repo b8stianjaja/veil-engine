@@ -1,12 +1,12 @@
 /**
  * @file src/components/MetronomeTerminal.tsx
  * @description Real-time debug console tracking event-driven decouplings of the Simulation Core.
- * Illustrates event streams, collisions, timeline triggers, and GSAP commands.
+ * Illustrates event streams, collisions, timeline triggers, and GSAP commands perfectly matched to token boundaries.
  */
 
 import React, { useState, useEffect, useRef } from 'react';
 import EventBus from '../engine/protocol/EventBus';
-import { Terminal, Shield, Sparkles, Trash2, Code2, Flame } from 'lucide-react';
+import { Terminal, Trash2 } from 'lucide-react';
 
 interface TerminalLog {
   timestamp: string;
@@ -35,7 +35,7 @@ export default function MetronomeTerminal({ theme = 'DARK' }: MetronomeTerminalP
   };
 
   useEffect(() => {
-    // Scroll container to bottom on new log additions
+    // Scroll container to bottom on new log additions smoothly
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
@@ -46,35 +46,19 @@ export default function MetronomeTerminal({ theme = 'DARK' }: MetronomeTerminalP
     appendLog('INFO', 'Veil Engine diagnostic console active.');
     appendLog('SUCCESS', 'All core modules verified. Compliance check secure.');
 
-    // Event listeners
+    // Event listeners mapped to system architecture
     const onStarted = () => appendLog('SUCCESS', 'SIM_STARTED: metronome ticker activated @ 60Hz. WASD bounds mapped.');
     const onStopped = () => appendLog('WARNING', 'SIM_STOPPED: Ticker paused. Baseline properties restored.');
     
-    const onCollected = (data: any) => {
-      appendLog('SUCCESS', `COLLECTED: Overlap cleared! Star harvested successfully. UUID: ${data.uuid}`);
-    };
+    const onCollected = (data: any) => appendLog('SUCCESS', `COLLECTED: Overlap cleared! Star harvested successfully. UUID: ${data.uuid}`);
+    const onHazard = (data: any) => appendLog('ERROR', `DAMAGE: Hit registered with '${data.name}'! [HP -15]`);
+    const onTrigger = (data: any) => appendLog('ANALYTIC', `TRIGGER: Sensor intersection with '${data.name}'. Executing dialog stream.`);
+    
+    const onExecuteEvent = (data: any) => appendLog('INFO', `TIMELINE_TRACK: keyframe dispatched. Action: ${data.action} | Params: ${JSON.stringify(data.params)}`);
+    const onFinished = (data: any) => appendLog('WARNING', `SEQUENCE_EOF: Sequence '${data.id}' completed play duration.`);
+    const onGsapLaunch = (data: any) => appendLog('ANALYTIC', `LERP_OFFLOAD: Tween instructions issued for ${data.targetUuid} -> [${data.channel}]`);
 
-    const onHazard = (data: any) => {
-      appendLog('ERROR', `DAMAGE: Hit registered with '${data.name}'! [HP -15]`);
-    };
-
-    const onTrigger = (data: any) => {
-      appendLog('ANALYTIC', `TRIGGER: Sensor intersection with '${data.name}'. Executing dialog stream.`);
-    };
-
-    const onExecuteEvent = (data: any) => {
-      appendLog('INFO', `TIMELINE_TRACK: keyframe dispatched. Action: ${data.action} | Params: ${JSON.stringify(data.params)}`);
-    };
-
-    const onFinished = (data: any) => {
-      appendLog('WARNING', `SEQUENCE_EOF: Sequence '${data.id}' completed play duration.`);
-    };
-
-    const onGsapLaunch = (data: any) => {
-      appendLog('ANALYTIC', `LERP_OFFLOAD: Tween instructions issued for ${data.targetUuid} -> [${data.channel}]`);
-    };
-
-    // Subscriptions
+    // Subscriptions attached
     EventBus.on('SIMULATION_STARTED', onStarted);
     EventBus.on('SIMULATION_STOPPED', onStopped);
     EventBus.on('PLAYER_COLLECTED', onCollected);
@@ -85,7 +69,7 @@ export default function MetronomeTerminal({ theme = 'DARK' }: MetronomeTerminalP
     EventBus.on('ENGINE_GSAP_LAUNCH', onGsapLaunch);
 
     return () => {
-      // Unsubscribe on unmount to safeguard memory
+      // Unsubscribe on unmount to safeguard engine memory
       EventBus.off('SIMULATION_STARTED', onStarted);
       EventBus.off('SIMULATION_STOPPED', onStopped);
       EventBus.off('PLAYER_COLLECTED', onCollected);
@@ -103,10 +87,10 @@ export default function MetronomeTerminal({ theme = 'DARK' }: MetronomeTerminalP
   };
 
   return (
-    <div className={`w-full h-full flex flex-col select-none pb-1 transition-colors ${
-      theme === 'LIGHT' ? 'bg-[#FFFFFF] border-t border-[#D1D1D6] text-[#1C1C1E]' : 'bg-[#1A1A1E] border-t border-[#2D2D33] text-[#E0E0E6]'
+    <div className={`w-full h-full flex flex-col select-none transition-colors border-t ${
+      theme === 'LIGHT' ? 'bg-[#FFFFFF] border-[#D1D1D6] text-[#1C1C1E]' : 'bg-[#1A1A1E] border-[#2D2D33] text-[#E0E0E6]'
     }`} id="metronome-terminal">
-      {/* Terminal Title Bar matching Design HTML */}
+      {/* Terminal Title Bar */}
       <div className={`flex items-center justify-between px-3 py-1.5 border-b select-none shrink-0 transition-colors ${
         theme === 'LIGHT' ? 'border-[#D1D1D6] bg-[#E5E5EA]' : 'border-[#2D2D33] bg-[#252529]'
       }`}>
@@ -117,11 +101,12 @@ export default function MetronomeTerminal({ theme = 'DARK' }: MetronomeTerminalP
 
         <button
           onClick={handleClearLogs}
-          className={`flex items-center gap-1 px-2 py-0.5 rounded-sm border transition text-[9px] cursor-pointer ${
+          className={`flex items-center gap-1 px-2 py-0.5 rounded-sm border transition text-[9px] cursor-pointer shadow-sm ${
             theme === 'LIGHT' 
-              ? 'border-[#D1D1D6] hover:bg-white text-[#55555C]' 
-              : 'border-[#2D2D33] hover:bg-[#2D2D33] text-[#71717A]'
+              ? 'bg-white border-[#D1D1D6] hover:bg-gray-50 text-[#55555C]' 
+              : 'bg-[#1C1C24] border-[#2D2D33] hover:bg-[#2D2D33] text-[#71717A]'
           }`}
+          title="Flush stream memory"
         >
           <Trash2 className="w-2.5 h-2.5" />
           <span>Clear Logs</span>
@@ -131,8 +116,8 @@ export default function MetronomeTerminal({ theme = 'DARK' }: MetronomeTerminalP
       {/* Logs Output list */}
       <div
         ref={containerRef}
-        className={`flex-1 overflow-y-auto p-3 font-mono text-[9px] space-y-1 scrollbar-thin select-text selection:bg-[#7C3AED]/30 transition-colors ${
-          theme === 'LIGHT' ? 'bg-[#F2F2F7]' : 'bg-[#141417]'
+        className={`flex-1 overflow-y-auto p-3 font-mono text-[9px] space-y-1 scrollbar-thin select-text transition-colors ${
+          theme === 'LIGHT' ? 'bg-[#FAFAF9] selection:bg-purple-200' : 'bg-[#141417] selection:bg-[#7C3AED]/30'
         }`}
       >
         {logs.map((log, idx) => {
@@ -140,30 +125,30 @@ export default function MetronomeTerminal({ theme = 'DARK' }: MetronomeTerminalP
           let borderSymbol = '::';
           
           if (log.type === 'SUCCESS') {
-            typeColor = 'text-emerald-500 font-bold';
+            typeColor = theme === 'LIGHT' ? 'text-emerald-600 font-bold' : 'text-emerald-500 font-bold';
             borderSymbol = '✓✓';
           } else if (log.type === 'WARNING') {
-            typeColor = 'text-amber-500 font-bold';
+            typeColor = theme === 'LIGHT' ? 'text-amber-600 font-bold' : 'text-amber-500 font-bold';
             borderSymbol = '!!';
           } else if (log.type === 'ERROR') {
             typeColor = 'text-red-500 font-extrabold';
             borderSymbol = '✗✗';
           } else if (log.type === 'ANALYTIC') {
-            typeColor = 'text-[#7D5DFE] font-bold';
+            typeColor = theme === 'LIGHT' ? 'text-[#6D28D9] font-bold' : 'text-[#7D5DFE] font-bold';
             borderSymbol = '✦✦';
           }
  
           return (
             <div key={idx} className="flex items-start gap-1.5 leading-relaxed">
-              <span className={`shrink-0 select-none font-sans ${theme === 'LIGHT' ? 'text-[#8E8E93]' : 'text-[#71717A]'}`}>[{log.timestamp}]</span>
+              <span className={`shrink-0 select-none font-sans ${theme === 'LIGHT' ? 'text-[#A1A1AA]' : 'text-[#71717A]'}`}>[{log.timestamp}]</span>
               <span className={`${typeColor} shrink-0 select-none text-[8px]`}>{borderSymbol} {log.type}</span>
-              <span className={`break-all ${theme === 'LIGHT' ? 'text-[#1C1C1E]' : 'text-[#A0A0AA]'}`}>{log.message}</span>
+              <span className={`break-all ${theme === 'LIGHT' ? 'text-[#27272A]' : 'text-[#A0A0AA]'}`}>{log.message}</span>
             </div>
           );
         })}
 
         {logs.length === 0 && (
-          <div className="h-full flex items-center justify-center italic text-[10px] select-none text-[#71717A]">
+          <div className={`h-full flex items-center justify-center italic text-[10px] select-none ${theme === 'LIGHT' ? 'text-gray-400' : 'text-[#71717A]'}`}>
             Terminal silent. Initiate 'Play' mode to stream runtime events.
           </div>
         )}

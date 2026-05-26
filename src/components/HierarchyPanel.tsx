@@ -2,21 +2,13 @@
  * @file src/components/HierarchyPanel.tsx
  * @description List hierarchy showing active entities, sorted into rendering layers for Artists or behavioral archetypes for Developers.
  * Allows instantiating/synthesizing new spatial nodes matching the current role.
+ * UI/UX Consolidated: Tool configurations (Brushes, Camera Anchors) are offloaded to Inspector & Canvas.
  */
 
 import React, { useState } from 'react';
 import { useSpatialEditorStore } from '../app/store';
 import { Entity, GeometryType, BehaviorType } from '../types';
-import { Plus, Trash2, Box, Eye, EyeOff, Lock, Unlock, Paintbrush, Anchor, Sparkles, AlertOctagon, HelpCircle, Palette, Cpu, Pencil, Eraser } from 'lucide-react';
-
-const BRUSH_PRESETS = [
-  { label: 'Hero Knight', type: 'BOX' as const, behavior: 'PLAYER' as const, color: '#10B981', assetFilename: 'hero_sprite_sheet.png' },
-  { label: 'Runic Pillar', type: 'BOX' as const, behavior: 'STATIC' as const, color: '#EF4444', assetFilename: 'stone_pillar.png' },
-  { label: 'Crystal Core', type: 'MESH' as const, behavior: 'ROTATOR' as const, color: '#A855F7', assetFilename: 'nexus_core.png' },
-  { label: 'Gold Star', type: 'SPHERE' as const, behavior: 'COLLECTIBLE' as const, color: '#FBF236', assetFilename: 'star.png' },
-  { label: 'Spike Trap', type: 'CAPSULE' as const, behavior: 'HAZARD' as const, color: '#9E0B0B', assetFilename: 'spikes.png' },
-  { label: 'Scenic Tree', type: 'MESH' as const, behavior: 'STATIC' as const, color: '#F472B6', assetFilename: 'cherry_tree.png' },
-];
+import { Plus, Trash2, Box, Eye, EyeOff, Lock, Unlock, Paintbrush, Anchor, Sparkles, AlertOctagon, HelpCircle, Palette, Cpu, Layers } from 'lucide-react';
 
 export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }: { workspace?: 'ARTIST' | 'DEVELOPER'; theme?: 'LIGHT' | 'DARK' }) {
   const {
@@ -29,34 +21,12 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
     layerVisibility,
     layerLock,
     activeDrawingLayer,
-    selectedBrush,
     setLayerVisibility,
     setLayerLock,
     setActiveDrawingLayer,
-    setSelectedBrush,
     activeToolMode,
     setToolMode,
-    drawingStrokes,
-    drawingTool,
-    drawingColor,
-    drawingWidth,
-    drawingBrushStyle,
-    setDrawingBrushStyle,
-    setDrawingTool,
-    setDrawingColor,
-    setDrawingWidth,
     clearDrawingStrokes,
-    activeViewportCamera,
-    setViewportCamera,
-    showGuideFrame,
-    setShowGuideFrame,
-    cameraFocusZLocked,
-    setCameraFocusZLocked,
-    cameraFocusSpot,
-    setCameraFocusSpot,
-    cameraSpots,
-    addCameraSpot,
-    removeCameraSpot,
     reorderEntityLayer
   } = useSpatialEditorStore();
 
@@ -106,18 +76,6 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
   const [newEntityName, setNewEntityName] = useState<string>('');
   const [newEntityType, setNewEntityType] = useState<GeometryType>('BOX');
   const [newEntityBehavior, setNewEntityBehavior] = useState<BehaviorType>('STATIC');
-  
-  // Dynamic camera anchor state properties
-  const [newSpotName, setNewSpotName] = useState<string>('');
-  const [newSpotX, setNewSpotX] = useState<number>(cameraFocusSpot?.[0] ?? 0);
-  const [newSpotY, setNewSpotY] = useState<number>(cameraFocusSpot?.[1] ?? 0);
-
-  React.useEffect(() => {
-    if (cameraFocusSpot) {
-      setNewSpotX(cameraFocusSpot[0]);
-      setNewSpotY(cameraFocusSpot[1]);
-    }
-  }, [cameraFocusSpot]);
   
   // Artist-specific preset options for new canvas elements
   const [artistPreset, setArtistPreset] = useState<'SPRITE' | 'BACKGROUND' | 'DECORATION' | 'PARTICLE'>('SPRITE');
@@ -221,15 +179,15 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
     <div className={`w-full h-full flex flex-col select-none transition-colors ${
       theme === 'LIGHT' ? 'bg-[#FFFFFF] text-[#1C1C1E]' : 'bg-[#1A1A1E] text-[#E0E0E6]'
     }`} id="hierarchy-panel">
-      {/* Header section matching Design HTML */}
+      {/* Header section */}
       <div className={`px-3 py-1.5 border-b flex justify-between items-center shrink-0 transition-colors ${
         theme === 'LIGHT' ? 'bg-[#E5E5EA] border-[#D1D1D6]' : 'bg-[#252529] border-[#2D2D33]'
       }`}>
-        <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${theme === 'LIGHT' ? 'text-[#55555C]' : 'text-[#71717A]'}`}>
-          {workspace === 'ARTIST' ? <Palette className="w-3 h-3 text-[#7C3AED]" /> : <Cpu className="w-3 h-3 text-[#7C3AED]" />}
-          <span>{workspace === 'ARTIST' ? 'Layers' : 'Schemas'}</span>
+        <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${theme === 'LIGHT' ? 'text-[#55555C]' : 'text-[#71717A]'}`}>
+          {workspace === 'ARTIST' ? <Layers className="w-3.5 h-3.5 text-[#7C3AED]" /> : <Cpu className="w-3.5 h-3.5 text-[#7C3AED]" />}
+          <span>{workspace === 'ARTIST' ? 'Spatial Layers' : 'Logic Schemas'}</span>
         </span>
-        <span className="text-[#71717A] text-xs font-mono font-bold font-semibold cursor-default select-none">+</span>
+        <span className="text-[#71717A] text-xs font-mono font-bold cursor-default select-none">+</span>
       </div>
 
       {/* Layer Groups / Archetypes Display */}
@@ -295,12 +253,14 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
                   return (
                     <div
                       key={uuid}
-                      draggable={true}
+                      draggable={!layerLock.background}
                       onDragStart={(e) => handleDragStart(e, uuid)}
                       onDragEnd={handleDragEnd}
                       onDragOver={(e) => handleDragOver(e, 'background', index, uuid)}
                       onDrop={(e) => handleDrop(e, 'background', index)}
-                      className={`flex items-center justify-between px-1.5 py-1 rounded-sm cursor-grab transition text-[11px] font-mono select-none relative ${
+                      className={`flex items-center justify-between px-1.5 py-1 rounded-sm transition text-[11px] font-mono select-none relative ${
+                        layerLock.background ? 'opacity-60 cursor-not-allowed' : 'cursor-grab'
+                      } ${
                         isBeingDragged ? 'opacity-40 border border-dashed border-purple-500/30' : ''
                       } ${
                         isDragOverMe 
@@ -311,23 +271,25 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
                               ? 'hover:bg-[#F2F2F7] text-[#55555C] hover:text-[#1C1C1E]' 
                               : 'hover:bg-[#2D2D33] text-[#A0A0AA] hover:text-[#E0E0E6]'
                       }`}
-                      onClick={() => setSelectedUuid(uuid)}
+                      onClick={() => !layerLock.background && setSelectedUuid(uuid)}
                     >
                       <div className="flex items-center gap-1.5 truncate">
                         {renderIcon(ent.behavior)}
                         <span className="truncate">{ent.name}</span>
                         {layerLock.background && <Lock className="w-2 h-2 text-red-500 opacity-70 shrink-0" />}
                       </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeEntity(uuid);
-                        }}
-                        className={`p-0.5 rounded-sm hover:bg-black/10 text-gray-400 hover:text-red-500`}
-                      >
-                        <Trash2 className="w-2.5 h-2.5" />
-                      </button>
+                      {!layerLock.background && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeEntity(uuid);
+                          }}
+                          className="p-0.5 rounded-sm hover:bg-black/10 text-gray-400 hover:text-red-500 cursor-pointer"
+                        >
+                          <Trash2 className="w-2.5 h-2.5" />
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -393,12 +355,14 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
                   return (
                     <div
                       key={uuid}
-                      draggable={true}
+                      draggable={!layerLock.gameplay}
                       onDragStart={(e) => handleDragStart(e, uuid)}
                       onDragEnd={handleDragEnd}
                       onDragOver={(e) => handleDragOver(e, 'gameplay', index, uuid)}
                       onDrop={(e) => handleDrop(e, 'gameplay', index)}
-                      className={`flex items-center justify-between px-1.5 py-1 rounded-sm cursor-grab transition text-[11px] font-mono select-none relative ${
+                      className={`flex items-center justify-between px-1.5 py-1 rounded-sm transition text-[11px] font-mono select-none relative ${
+                        layerLock.gameplay ? 'opacity-60 cursor-not-allowed' : 'cursor-grab'
+                      } ${
                         isBeingDragged ? 'opacity-40 border border-dashed border-purple-500/30' : ''
                       } ${
                         isDragOverMe 
@@ -409,23 +373,25 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
                               ? 'hover:bg-[#F2F2F7] text-[#55555C] hover:text-[#1C1C1E]' 
                               : 'hover:bg-[#2D2D33] text-[#A0A0AA] hover:text-[#E0E0E6]'
                       }`}
-                      onClick={() => setSelectedUuid(uuid)}
+                      onClick={() => !layerLock.gameplay && setSelectedUuid(uuid)}
                     >
                       <div className="flex items-center gap-1.5 truncate">
                         {renderIcon(ent.behavior)}
                         <span className="truncate font-semibold">{ent.name}</span>
                         {layerLock.gameplay && <Lock className="w-2 h-2 text-red-500 opacity-70 shrink-0" />}
                       </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeEntity(uuid);
-                        }}
-                        className="p-0.5 rounded-sm hover:bg-black/10 text-gray-400 hover:text-red-500"
-                      >
-                        <Trash2 className="w-2.5 h-2.5" />
-                      </button>
+                      {!layerLock.gameplay && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeEntity(uuid);
+                          }}
+                          className="p-0.5 rounded-sm hover:bg-black/10 text-gray-400 hover:text-red-500 cursor-pointer"
+                        >
+                          <Trash2 className="w-2.5 h-2.5" />
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -491,12 +457,14 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
                   return (
                     <div
                       key={uuid}
-                      draggable={true}
+                      draggable={!layerLock.foreground}
                       onDragStart={(e) => handleDragStart(e, uuid)}
                       onDragEnd={handleDragEnd}
                       onDragOver={(e) => handleDragOver(e, 'foreground', index, uuid)}
                       onDrop={(e) => handleDrop(e, 'foreground', index)}
-                      className={`flex items-center justify-between px-1.5 py-1 rounded-sm cursor-grab transition text-[11px] font-mono select-none relative ${
+                      className={`flex items-center justify-between px-1.5 py-1 rounded-sm transition text-[11px] font-mono select-none relative ${
+                        layerLock.foreground ? 'opacity-60 cursor-not-allowed' : 'cursor-grab'
+                      } ${
                         isBeingDragged ? 'opacity-40 border border-dashed border-purple-500/30' : ''
                       } ${
                         isDragOverMe 
@@ -507,23 +475,25 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
                               ? 'hover:bg-[#F2F2F7] text-[#55555C] hover:text-[#1C1C1E]' 
                               : 'hover:bg-[#2D2D33] text-[#A0A0AA] hover:text-[#E0E0E6]'
                       }`}
-                      onClick={() => setSelectedUuid(uuid)}
+                      onClick={() => !layerLock.foreground && setSelectedUuid(uuid)}
                     >
                       <div className="flex items-center gap-1.5 truncate">
                         {renderIcon(ent.behavior)}
                         <span className="truncate">{ent.name}</span>
                         {layerLock.foreground && <Lock className="w-2 h-2 text-red-500 opacity-70 shrink-0" />}
                       </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeEntity(uuid);
-                        }}
-                        className="p-0.5 rounded-sm hover:bg-black/10 text-gray-400 hover:text-red-500"
-                      >
-                        <Trash2 className="w-2.5 h-2.5" />
-                      </button>
+                      {!layerLock.foreground && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeEntity(uuid);
+                          }}
+                          className="p-0.5 rounded-sm hover:bg-black/10 text-gray-400 hover:text-red-500 cursor-pointer"
+                        >
+                          <Trash2 className="w-2.5 h-2.5" />
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -570,7 +540,7 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
                           e.stopPropagation();
                           removeEntity(ent.uuid);
                         }}
-                        className="p-0.5 rounded-sm hover:bg-black/10 text-gray-400 hover:text-red-500"
+                        className="p-0.5 rounded-sm hover:bg-black/10 text-gray-400 hover:text-red-500 cursor-pointer"
                       >
                         <Trash2 className="w-2.5 h-2.5" />
                       </button>
@@ -615,7 +585,7 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
                           e.stopPropagation();
                           removeEntity(ent.uuid);
                         }}
-                        className="p-0.5 rounded-sm hover:bg-black/10 text-gray-400 hover:text-red-500"
+                        className="p-0.5 rounded-sm hover:bg-black/10 text-gray-400 hover:text-red-500 cursor-pointer"
                       >
                         <Trash2 className="w-2.5 h-2.5" />
                       </button>
@@ -660,7 +630,7 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
                           e.stopPropagation();
                           removeEntity(ent.uuid);
                         }}
-                        className="p-0.5 rounded-sm hover:bg-black/10 text-gray-400 hover:text-red-500"
+                        className="p-0.5 rounded-sm hover:bg-black/10 text-gray-400 hover:text-red-500 cursor-pointer"
                       >
                         <Trash2 className="w-2.5 h-2.5" />
                       </button>
@@ -676,8 +646,8 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
         )}
       </div>
 
-      {/* role-Isolated Node Synthesis Footer Form */}
-      <form onSubmit={handleAdd} className={`p-2.5 border-t transition-colors ${
+      {/* Role-Isolated Node Synthesis Footer Form */}
+      <div className={`p-2.5 border-t transition-colors ${
         theme === 'LIGHT' ? 'border-[#D1D1D6] bg-[#FFFFFF]' : 'border-[#2D2D33] bg-[#1A1A1E]'
       } space-y-2.5 shrink-0`}>
         
@@ -689,9 +659,9 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
             <button
               type="button"
               onClick={() => setToolMode('SELECT')}
-              className={`flex-1 py-1 rounded-xs transition text-center cursor-pointer ${
+              className={`flex-1 py-1 rounded-sm transition text-center cursor-pointer ${
                 activeToolMode !== 'DRAW'
-                  ? theme === 'LIGHT' ? 'bg-[#7C3AED]/15 text-[#7C3AED] font-bold' : 'bg-[#7C3AED]/20 text-[#D8B4FE] font-bold'
+                  ? theme === 'LIGHT' ? 'bg-[#7C3AED]/15 text-[#7C3AED] font-bold shadow-sm' : 'bg-[#7C3AED]/20 text-[#D8B4FE] font-bold shadow-sm'
                   : theme === 'LIGHT' ? 'text-zinc-500 hover:text-black' : 'text-gray-400 hover:text-white'
               }`}
               title="Transform, translate, rotate, and scale nodes manually on the canvas"
@@ -701,10 +671,10 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
             <button
               type="button"
               onClick={() => setToolMode('DRAW')}
-              className={`flex-1 py-1 rounded-xs transition text-center cursor-pointer ${
+              className={`flex-1 py-1 rounded-sm transition text-center cursor-pointer ${
                 activeToolMode === 'DRAW'
-                  ? 'bg-[#7C3AED] text-white font-bold animate-pulse'
-                  : theme === 'LIGHT' ? 'text-zinc-650 hover:text-black' : 'text-gray-300 hover:text-white'
+                  ? 'bg-[#7C3AED] text-white font-bold shadow-sm animate-pulse'
+                  : theme === 'LIGHT' ? 'text-zinc-600 hover:text-black' : 'text-gray-300 hover:text-white'
               }`}
               title="Activate the Paint Brush to draw directly onto the grid layers"
             >
@@ -714,464 +684,42 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
         )}
 
         {workspace === 'ARTIST' && activeToolMode === 'DRAW' ? (
-          /* DESIGN DRAWING & SPAWNER DECK */
-          <div className={`animate-fade-in border p-2 rounded-sm space-y-2.5 transition-colors ${
+          /* CONSOLIDATED DRAWING DECK: Points to Inspector */
+          <div className={`animate-fade-in border p-3.5 rounded-sm space-y-2.5 text-center transition-colors ${
             theme === 'LIGHT'
-              ? 'bg-[#F2F2F7] border-[#D1D1D6] text-zinc-800'
-              : 'bg-[#131317] border-[#2D2D33] text-[#E0E0E6]'
+              ? 'bg-[#F2F2F7] border-[#D1D1D6] text-zinc-700'
+              : 'bg-[#131317] border-[#2D2D33] text-[#A0A0AA]'
           }`}>
-            {/* Sub-mode Tab Switcher */}
-            <div className={`flex p-0.5 rounded border text-[9px] font-mono transition-colors ${
-              theme === 'LIGHT' ? 'bg-white border-[#D1D1D6]' : 'bg-[#222227] border-[#2D2D33]'
-            }`}>
-              <button
-                type="button"
-                onClick={() => setDrawingTool('pencil')}
-                className={`flex-1 py-1 px-1 rounded-sm text-center font-bold flex items-center justify-center gap-1 cursor-pointer transition ${
-                  drawingTool !== 'mesh'
-                    ? 'bg-[#7C3AED] text-white'
-                    : theme === 'LIGHT' ? 'text-zinc-500 hover:text-black' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                <Pencil className="w-2.5 h-2.5 text-purple-300" />
-                <span>Pencil Draw</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setDrawingTool('mesh')}
-                className={`flex-1 py-1 px-1 rounded-sm text-center font-bold flex items-center justify-center gap-1 cursor-pointer transition ${
-                  drawingTool === 'mesh'
-                    ? 'bg-[#7C3AED] text-white'
-                    : theme === 'LIGHT' ? 'text-zinc-500 hover:text-black' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                <Box className="w-2.5 h-2.5 text-emerald-400" />
-                <span>Collider Brush</span>
-              </button>
-            </div>
-
-            {drawingTool !== 'mesh' ? (
-              /* PENCIL & ERASER STUDIO PANEL */
-              <div className="space-y-2.5">
-                {/* Pencil / Eraser Selector */}
-                <div className="flex gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setDrawingTool('pencil')}
-                    className={`flex-1 py-1.5 rounded-sm border flex items-center justify-center gap-1.5 text-[10px] font-bold cursor-pointer transition-colors ${
-                      drawingTool === 'pencil'
-                        ? theme === 'LIGHT'
-                          ? 'bg-purple-100 border-purple-400 text-purple-700'
-                          : 'bg-purple-600/30 border-purple-500 text-purple-300'
-                        : theme === 'LIGHT'
-                          ? 'bg-white border-[#D1D1D6] text-zinc-650 hover:bg-zinc-100'
-                          : 'bg-[#222227] border-transparent text-[#A0A0AA] hover:bg-[#2A2A30]'
-                    }`}
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                    <span>Pencil</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDrawingTool('eraser')}
-                    className={`flex-1 py-1.5 rounded-sm border flex items-center justify-center gap-1.5 text-[10px] font-bold cursor-pointer transition-colors ${
-                      drawingTool === 'eraser'
-                        ? theme === 'LIGHT'
-                          ? 'bg-rose-100 border-rose-400 text-rose-700'
-                          : 'bg-rose-600/30 border-rose-500 text-rose-300'
-                        : theme === 'LIGHT'
-                          ? 'bg-white border-[#D1D1D6] text-zinc-650 hover:bg-zinc-100'
-                          : 'bg-[#222227] border-transparent text-[#A0A0AA] hover:bg-[#2A2A30]'
-                    }`}
-                  >
-                    <Eraser className="w-3.5 h-3.5" />
-                    <span>Eraser</span>
-                  </button>
-                </div>
-
-                {/* Color Swatch Panel */}
-                {drawingTool === 'pencil' && (
-                  <div className="space-y-1">
-                    <label className={`text-[8px] font-mono uppercase tracking-wide block font-bold ${
-                      theme === 'LIGHT' ? 'text-zinc-600' : 'text-[#71717A]'
-                    }`}>Pick Color</label>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {[
-                        '#A855F7', // Deep Lavender
-                        '#F87171', // Soft Red
-                        '#FBBF24', // Sunshine Gold
-                        '#60A5FA', // Sky Blue
-                        '#34D399', // Cyber Mint
-                        '#FFFFFF', // White Accent
-                      ].map((c) => (
-                        <button
-                          key={c}
-                          type="button"
-                          onClick={() => setDrawingColor(c)}
-                          className={`w-6 h-6 rounded-sm cursor-pointer transition-all border ${
-                            theme === 'LIGHT' ? 'border-zinc-300' : 'border-gray-900'
-                          } ${
-                            drawingColor.toLowerCase() === c.toLowerCase() ? 'ring-2 ring-purple-500 scale-110' : 'opacity-70 hover:opacity-100'
-                          }`}
-                          style={{ backgroundColor: c }}
-                          title={c}
-                        />
-                      ))}
-                      {/* Spectrum input */}
-                      <input
-                        type="color"
-                        value={drawingColor}
-                        onChange={(e) => setDrawingColor(e.target.value)}
-                        className={`w-6 h-6 rounded-sm cursor-pointer bg-transparent p-0 border ${
-                          theme === 'LIGHT' ? 'border-zinc-300' : 'border-gray-900'
-                        }`}
-                        title="Custom Color"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Stroke Thickness Slider */}
-                <div className="space-y-1">
-                  <div className={`flex justify-between text-[8px] font-mono uppercase font-bold ${
-                    theme === 'LIGHT' ? 'text-zinc-600' : 'text-[#71717A]'
-                  }`}>
-                    <span>{drawingTool === 'pencil' ? 'Line Width' : 'Eraser Radius'}</span>
-                    <span className="text-purple-600 dark:text-purple-400 font-extrabold">{drawingWidth}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="1"
-                    max="12"
-                    value={drawingWidth}
-                    onChange={(e) => setDrawingWidth(parseInt(e.target.value, 10))}
-                    className={`w-full h-1 rounded-lg appearance-none cursor-pointer accent-[#7C3AED] ${
-                      theme === 'LIGHT' ? 'bg-[#D1D1D6]' : 'bg-[#222227]'
-                    }`}
-                  />
-                </div>
-
-                {/* Visual Brush Selector */}
-                {drawingTool === 'pencil' && (
-                  <div className="space-y-1">
-                    <div className={`flex justify-between text-[8px] font-mono uppercase font-bold ${
-                      theme === 'LIGHT' ? 'text-[#1C1C1E]' : 'text-[#A0A0AA]'
-                    }`}>
-                      <span>Brush type stencil</span>
-                      <span className="text-[#8B5CF6] font-extrabold">{drawingBrushStyle.toUpperCase()}</span>
-                    </div>
-                    
-                    <div className="grid grid-cols-3 gap-1">
-                      {[
-                        { id: 'solid', label: '✏️ Solid' },
-                        { id: 'calligraphy', label: '✒️ Chisel' },
-                        { id: 'neon', label: '✨ Neon' },
-                        { id: 'charcoal', label: '🖍️ Crayon' },
-                        { id: 'star', label: '⭐ Sparkle' },
-                        { id: 'dash', label: '🏁 Dash' }
-                      ].map((item) => {
-                        const active = drawingBrushStyle === item.id;
-                        return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => setDrawingBrushStyle(item.id as any)}
-                            className={`px-1 py-1 rounded-[3px] border text-[8px] font-mono font-bold transition-all text-center cursor-pointer ${
-                              active
-                                ? 'bg-purple-500/15 border-purple-500/60 text-purple-600 dark:text-purple-400 scale-[1.02]'
-                                : theme === 'LIGHT'
-                                  ? 'bg-[#F2F2F7] border-[#D1D1D6] text-zinc-700 hover:bg-[#E5E5EA]'
-                                  : 'bg-[#18181A]/80 border-[#2D2D33]/60 text-[#A0A0AA] hover:bg-[#222227] hover:text-white'
-                            }`}
-                          >
-                            {item.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Artist Workspace Drafting Guidance (Camera Locks & Presets) */}
-                <div className={`p-2 rounded border space-y-2 transition-colors ${
-                  theme === 'LIGHT' ? 'bg-white border-[#D1D1D6]' : 'bg-[#1C1C22] border-[#2D2D33]'
-                }`}>
-                  <span className={`text-[8px] font-mono uppercase tracking-wide block font-bold ${
-                    theme === 'LIGHT' ? 'text-zinc-650' : 'text-[#71717A]'
-                  }`}>Drafting View Alignment</span>
-                  
-                  <div className="flex flex-col gap-1.5 text-[10px]">
-                    {/* Flat 2D Snap Toggle */}
-                    <button
-                      type="button"
-                      onClick={() => setViewportCamera(activeViewportCamera === 'FLAT_2D' ? 'ISOMETRIC' : 'FLAT_2D')}
-                      className={`py-1 px-2 rounded-sm border flex items-center justify-between font-bold cursor-pointer transition ${
-                        activeViewportCamera === 'FLAT_2D'
-                          ? theme === 'LIGHT'
-                            ? 'bg-purple-100 border-[#7C3AED]/60 text-purple-750 text-purple-800'
-                            : 'bg-purple-600/35 border-purple-500 text-purple-300'
-                          : theme === 'LIGHT'
-                            ? 'bg-[#F2F2F7] border-zinc-250 text-zinc-700 hover:bg-[#E5E5EA] hover:text-black'
-                            : 'bg-[#222227] border-transparent text-[#A0A0AA] hover:bg-[#2A2A30] hover:text-[#FFFFFF]'
-                      }`}
-                    >
-                      <span className="font-sans">2D Flat Mode (Pencil Focus)</span>
-                      <span className={`font-mono text-[9px] px-1 py-0.5 rounded transition-colors ${
-                        theme === 'LIGHT' ? 'bg-zinc-255 bg-black/5 text-zinc-600' : 'bg-black/40 text-gray-400'
-                      }`}>
-                        {activeViewportCamera === 'FLAT_2D' ? 'ACTIVE' : 'OFF'}
-                      </span>
-                    </button>
-
-                    {/* Camera Z Lock Toggle */}
-                    <button
-                      type="button"
-                      onClick={() => setCameraFocusZLocked(!cameraFocusZLocked)}
-                      className={`py-1 px-2 rounded-sm border flex items-center justify-between font-bold cursor-pointer transition ${
-                        cameraFocusZLocked
-                          ? theme === 'LIGHT'
-                            ? 'bg-purple-100 border-[#7C3AED]/60 text-purple-750 text-purple-800'
-                            : 'bg-purple-600/35 border-purple-500 text-purple-300'
-                          : theme === 'LIGHT'
-                            ? 'bg-[#F2F2F7] border-zinc-250 text-zinc-700 hover:bg-[#E5E5EA] hover:text-black'
-                            : 'bg-[#222227] border-transparent text-[#A0A0AA] hover:bg-[#2A2A30] hover:text-[#FFFFFF]'
-                      }`}
-                    >
-                      <span className="font-sans">Lock Z-Depth Target Focus</span>
-                      <span className={`font-mono text-[9px] px-1 py-0.5 rounded transition-colors ${
-                        theme === 'LIGHT' ? 'bg-zinc-255 bg-black/5 text-zinc-600' : 'bg-black/40 text-gray-400'
-                      }`}>
-                        {cameraFocusZLocked ? 'LOCKED' : 'OFF'}
-                      </span>
-                    </button>
-
-                    {/* Crop Guide Toggle */}
-                    <button
-                      type="button"
-                      onClick={() => setShowGuideFrame(!showGuideFrame)}
-                      className={`py-1 px-2 rounded-sm border flex items-center justify-between font-bold cursor-pointer transition ${
-                        showGuideFrame
-                          ? theme === 'LIGHT'
-                            ? 'bg-purple-100 border-[#7C3AED]/60 text-purple-750 text-purple-800'
-                            : 'bg-purple-600/35 border-purple-500 text-purple-300'
-                          : theme === 'LIGHT'
-                            ? 'bg-[#F2F2F7] border-zinc-250 text-zinc-700 hover:bg-[#E5E5EA] hover:text-black'
-                            : 'bg-[#222227] border-transparent text-[#A0A0AA] hover:bg-[#2A2A30] hover:text-[#FFFFFF]'
-                      }`}
-                    >
-                      <span className="font-sans">Playfield Crop (16:9 bounds)</span>
-                      <span className={`font-mono text-[9px] px-1 py-0.5 rounded transition-colors ${
-                        theme === 'LIGHT' ? 'bg-zinc-255 bg-black/5 text-zinc-600' : 'bg-black/40 text-gray-400'
-                      }`}>
-                        {showGuideFrame ? 'SHOWING' : 'MUTED'}
-                      </span>
-                    </button>
-
-                    {/* Camera Spot Anchor Presets */}
-                    <div className={`pt-2 border-t space-y-2 transition-colors ${
-                      theme === 'LIGHT' ? 'border-[#D1D1D6]' : 'border-[#2D2D33]/65'
-                    }`}>
-                      <div className="flex justify-between items-center">
-                        <label className="text-[7.5px] font-mono text-[#8B5CF6] uppercase tracking-wider font-bold block mb-0.5">📷 Scene Spot Anchors & Presets</label>
-                        <span className="text-[7.5px] font-mono text-[#71717A]">({cameraSpots?.length || 0} registered)</span>
-                      </div>
-
-                      {/* Presets List */}
-                      <div className="grid grid-cols-2 gap-1 font-mono text-[9px]">
-                        {(cameraSpots || []).map((s) => {
-                          const isActive = cameraFocusSpot && cameraFocusSpot[0] === s.spot[0] && cameraFocusSpot[1] === s.spot[1];
-                          return (
-                            <div
-                              key={s.name}
-                              className={`flex items-center justify-between rounded-sm border transition overflow-hidden ${
-                                isActive
-                                  ? theme === 'LIGHT'
-                                    ? 'bg-purple-100 border-[#7C3AED]/65 text-purple-800 font-bold'
-                                    : 'bg-[#7C3AED]/20 border-purple-500 text-purple-300 font-bold'
-                                  : theme === 'LIGHT'
-                                    ? 'bg-white border-zinc-250 text-zinc-700 hover:bg-zinc-100 hover:text-black'
-                                    : 'bg-[#1F1F24] border-transparent text-gray-400 hover:bg-[#25252A] hover:text-[#FFFFFF]'
-                              }`}
-                            >
-                              <button
-                                type="button"
-                                onClick={() => setCameraFocusSpot(s.spot)}
-                                className="flex-1 py-1 px-1.5 cursor-pointer text-left truncate text-[8.5px] leading-tight"
-                                title={`Focus on: ${s.name} [${s.spot[0]}, ${s.spot[1]}]`}
-                              >
-                                📍 {s.name}
-                              </button>
-                              
-                              {/* Delete only if custom/non-essential or allow all to be deleted for full user freedom */}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  removeCameraSpot(s.name);
-                                }}
-                                className={`px-1 py-1 hover:bg-red-500/20 text-gray-500 hover:text-red-650 dark:hover:text-red-400 font-mono text-[8px] cursor-pointer self-stretch flex items-center justify-center transition border-l ${
-                                  theme === 'LIGHT' ? 'border-[#D1D1D6]' : 'border-[#2D2D33]/40'
-                                }`}
-                                title="Remove Spot Anchor"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Anchor Creator Widget */}
-                      <div className={`p-2 rounded border space-y-2 mt-1 transition-colors ${
-                        theme === 'LIGHT' ? 'bg-white border-[#D1D1D6]' : 'bg-[#141418] border-[#2D2D33]/60'
-                      }`}>
-                        <span className={`text-[8px] font-mono uppercase tracking-widest block font-bold ${
-                          theme === 'LIGHT' ? 'text-zinc-600' : 'text-gray-400'
-                        }`}>Assemble New Camera Spot</span>
-                        
-                        <div className="space-y-1.5">
-                          <input
-                            type="text"
-                            placeholder="Spot label (e.g. Boss Room)"
-                            value={newSpotName}
-                            onChange={(e) => setNewSpotName(e.target.value)}
-                            className={`w-full border rounded px-1.5 py-0.5 text-[9px] focus:outline-none focus:ring-1 focus:ring-[#7C3AED] focus:ring-offset-0 focus:border-[#7C3AED] font-mono transition-colors ${
-                              theme === 'LIGHT'
-                                ? 'bg-[#F2F2F7] border-[#D1D1D6] text-black placeholder-zinc-400'
-                                : 'bg-[#1A1A20] border-[#2D2D33] text-white placeholder-gray-600'
-                            }`}
-                          />
-                          
-                          <div className="grid grid-cols-2 gap-1.5">
-                            <div className={`flex items-center gap-1 border rounded px-1 py-0.5 font-mono text-[9px] transition-colors ${
-                              theme === 'LIGHT' ? 'bg-[#F2F2F7] border-[#D1D1D6]' : 'bg-[#1A1A20] border-[#2D2D33]'
-                            }`}>
-                              <span className="text-red-500 font-bold">X</span>
-                              <input
-                                type="number"
-                                step="0.5"
-                                value={newSpotX}
-                                onChange={(e) => setNewSpotX(parseFloat(e.target.value) || 0)}
-                                className={`bg-transparent w-full text-right p-0 focus:outline-none font-bold ${
-                                  theme === 'LIGHT' ? 'text-black' : 'text-white'
-                                }`}
-                              />
-                            </div>
-                            <div className={`flex items-center gap-1 border rounded px-1 py-0.5 font-mono text-[9px] transition-colors ${
-                              theme === 'LIGHT' ? 'bg-[#F2F2F7] border-[#D1D1D6]' : 'bg-[#1A1A20] border-[#2D2D33]'
-                            }`}>
-                              <span className="text-emerald-500 font-bold">Y</span>
-                              <input
-                                type="number"
-                                step="0.5"
-                                value={newSpotY}
-                                onChange={(e) => setNewSpotY(parseFloat(e.target.value) || 0)}
-                                className={`bg-transparent w-full text-right p-0 focus:outline-none font-bold ${
-                                  theme === 'LIGHT' ? 'text-black' : 'text-white'
-                                }`}
-                              />
-                            </div>
-                          </div>
-
-                          <div className="flex gap-1">
-                            {/* Grab Current Coordinates utility helper */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setNewSpotX(cameraFocusSpot ? cameraFocusSpot[0] : 0);
-                                setNewSpotY(cameraFocusSpot ? cameraFocusSpot[1] : 0);
-                              }}
-                              className={`flex-1 border text-[8px] py-1 rounded cursor-pointer transition font-mono ${
-                                theme === 'LIGHT'
-                                  ? 'bg-white border-[#D1D1D6] text-zinc-700 hover:bg-[#F2F2F7]'
-                                  : 'bg-[#1D1D22] border-[#2D2D33] text-[#A0A0AA] hover:bg-[#25252D]'
-                              }`}
-                            >
-                              🎯 Capture Current
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const nameTrimmed = newSpotName.trim();
-                                if (!nameTrimmed) {
-                                  alert('Please enter a spot label name first.');
-                                  return;
-                                }
-                                addCameraSpot(nameTrimmed, [newSpotX, newSpotY]);
-                                setNewSpotName('');
-                              }}
-                              className="flex-1 bg-[#7C3AED] hover:bg-[#8B5CF6] text-white text-[8px] py-1 rounded font-bold transition cursor-pointer font-mono shadow-sm"
-                            >
-                              ⚓ Drop Anchor
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Actions: Clear drawing buffer */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (confirm(`Clear all pencil drawings on the '${activeDrawingLayer}' layer?`)) {
-                      clearDrawingStrokes(activeDrawingLayer);
-                    }
-                  }}
-                  className={`w-full py-1 text-[8.5px] uppercase font-mono font-bold tracking-tight border rounded cursor-pointer flex items-center justify-center gap-1 border-solid transition ${
-                    theme === 'LIGHT'
-                      ? 'bg-rose-50 border-rose-250 text-rose-700 hover:bg-rose-100'
-                      : 'bg-rose-950/40 text-rose-400 border-rose-900/50 hover:bg-rose-900/40'
-                  }`}
-                >
-                  <Trash2 className="w-3 h-3" />
-                  <span>Clear {activeDrawingLayer} drawings</span>
-                </button>
-              </div>
-            ) : (
-              /* SOLID OBJECT MESH PLACER */
-              <div className="space-y-2">
-                <div className="text-[8px] font-mono text-[#A0A0AA] font-bold flex justify-between uppercase">
-                  <span>active paint brush</span>
-                  <span className="text-purple-400 font-bold">{selectedBrush.behavior}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-1 text-[9px]">
-                  {BRUSH_PRESETS.map((bp) => {
-                    const isSelected = selectedBrush.behavior === bp.behavior && selectedBrush.type === bp.type;
-                    return (
-                      <button
-                        key={bp.label}
-                        type="button"
-                        onClick={() => setSelectedBrush({
-                          type: bp.type,
-                          behavior: bp.behavior,
-                          color: bp.color,
-                          assetFilename: bp.assetFilename
-                        })}
-                        className={`flex items-center gap-1.5 p-1 rounded-sm border cursor-pointer transition ${
-                          isSelected
-                            ? 'bg-[#7C3AED] border-[#7C3AED] text-white font-bold shadow'
-                            : 'bg-[#222227] border-transparent text-[#A0A0AA] hover:bg-[#2A2A30] hover:text-[#FFFFFF]'
-                        }`}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: bp.color }} />
-                        <span className="truncate">{bp.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            <Palette className={`w-6 h-6 mx-auto mb-1 ${theme === 'LIGHT' ? 'text-[#7C3AED]/70' : 'text-[#7C3AED]/50'}`} />
             
-            <div className="text-[7.5px] font-mono text-gray-500 bg-black/20 p-1.5 rounded text-center leading-normal">
-              Active layer: <span className="text-purple-400 font-bold">{activeDrawingLayer.toUpperCase()}</span>. Pencil strokes are projected into 2.5D coordinate space.
-            </div>
+            <p className="text-[10px] font-mono leading-relaxed">
+              Target Depth: <span className="text-[#7C3AED] font-bold uppercase">{activeDrawingLayer}</span>
+            </p>
+            
+            <p className="text-[9px] font-sans opacity-90 px-2">
+              Configure your pencil pigment, vector styles, stroke widths, and tool modes seamlessly inside the <strong className={theme === 'LIGHT' ? 'text-black' : 'text-white'}>Inspector Panel</strong>.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm(`Clear all hand-drawn vectors on the '${activeDrawingLayer}' layer?`)) {
+                  clearDrawingStrokes(activeDrawingLayer);
+                }
+              }}
+              className={`w-full py-1.5 mt-2 text-[9px] uppercase font-mono font-bold tracking-tight border rounded cursor-pointer flex items-center justify-center gap-1.5 transition ${
+                theme === 'LIGHT'
+                  ? 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'
+                  : 'bg-rose-950/40 text-rose-400 border-rose-900/50 hover:bg-rose-900/40'
+              }`}
+            >
+              <Trash2 className="w-3 h-3" />
+              <span>Flush Active Layer Vectors</span>
+            </button>
           </div>
         ) : (
           /* TRADITIONAL FORM CONFIG FOR SELECTIVE AND TYPICAL GENERATIONS */
-          <>
+          <form onSubmit={handleAdd} className="space-y-2.5">
             <label className={`text-[9px] font-mono uppercase block font-bold ${theme === 'LIGHT' ? 'text-[#55555C]' : 'text-[#71717A]'}`}>
               {workspace === 'ARTIST' ? 'Add Artboard Element' : 'Instantiate Behavior Node'}
             </label>
@@ -1266,14 +814,14 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
 
             <button
               type="submit"
-              className="w-full flex items-center justify-center gap-1 bg-[#7C3AED] hover:bg-[#8B5CF6] text-white font-semibold py-1 rounded-sm text-[10px] uppercase tracking-wider transition shadow-sm cursor-pointer border-none"
+              className="w-full flex items-center justify-center gap-1.5 bg-[#7C3AED] hover:bg-[#8B5CF6] text-white font-semibold py-1 rounded-sm text-[10px] uppercase tracking-wider transition shadow-sm cursor-pointer border-none"
             >
               <Plus className="w-3 h-3" />
               <span>{workspace === 'ARTIST' ? 'Spawn Generator' : 'Instantiate Actor'}</span>
             </button>
-          </>
+          </form>
         )}
-      </form>
+      </div>
     </div>
   );
 }
