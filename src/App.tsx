@@ -1,3 +1,10 @@
+/**
+ * @file src/App.tsx
+ * @description Master IDE Viewport Container.
+ * Manages Workspace state, Global Tool Hotkeys, Native File System I/O bindings, 
+ * and controls the lifecycle bounds of the SpatialCreativeCanvas vs the SimulationOverlay.
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useSpatialEditorStore } from './app/store';
 import HierarchyPanel from './components/HierarchyPanel';
@@ -10,28 +17,9 @@ import EventBus from './engine/protocol/EventBus';
 import SimulationCore from './engine/SimulationCore';
 import { VeilProjectManifest } from './types';
 import {
-  Play,
-  Square,
-  Cpu,
-  Monitor,
-  Camera,
-  Layers,
-  Save,
-  FolderOpen,
-  ArrowRightLeft,
-  Terminal,
-  MousePointer,
-  Move,
-  RotateCw,
-  Maximize2,
-  Palette,
-  Sun,
-  Moon,
-  Paintbrush,
-  Frame,
-  Pin,
-  Download,
-  Upload
+  Play, Square, Cpu, Camera, Layers, Save, FolderOpen,
+  MousePointer, Move, RotateCw, Maximize2, Palette, Sun, Moon,
+  Paintbrush, Frame, Pin, Download, Upload
 } from 'lucide-react';
 
 export default function App() {
@@ -72,6 +60,7 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('veil_editor_theme', theme);
   }, [theme]);
+  
   const [compiledManifest, setCompiledManifest] = useState<VeilProjectManifest | null>(null);
   
   // Custom camera trajectory coordinates (Bezier Spline Control Points)
@@ -81,11 +70,21 @@ export default function App() {
     [-8, 6, -10]
   ]);
 
-  // Bind hotkeys for quick tool changes matching standard high-end modeling apps (W, E, R, T)
+  // =========================================================
+  // GLOBAL HOTKEY ISOLATION MATRIX
+  // =========================================================
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Prevent mapping intercepts when inside focus input blocks
-      if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLSelectElement) {
+      if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLSelectElement || document.activeElement instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      // If the simulation is running, strictly disable editor hotkeys to prevent WASD conflicts
+      if (isSimulating) {
+        if (e.key === 'Escape') {
+          handleStopSimulation();
+        }
         return;
       }
 
@@ -94,15 +93,16 @@ export default function App() {
       else if (key === 'w') setToolMode('TRANSLATE');
       else if (key === 'e') setToolMode('ROTATE');
       else if (key === 'r') setToolMode('SCALE');
+      else if (key === 'Escape') setSelectedUuid(null);
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [setToolMode]);
+  }, [isSimulating, setToolMode, setSelectedUuid]);
 
-  // Listen to simulation status events
+  // Listen to simulation status events from core
   useEffect(() => {
     const handleStarted = () => setIsSimulating(true);
     const handleStopped = () => setIsSimulating(false);
@@ -132,7 +132,6 @@ export default function App() {
   };
 
   const handleStopSimulation = () => {
-    // Shutdown simulation loop and restore values
     SimulationCore.stop();
   };
 
@@ -144,76 +143,147 @@ export default function App() {
     }
   };
 
-  // Mock saving project file and trigger logs
-  const handleSaveProject = () => {
-    const data = {
-      environment: useSpatialEditorStore.getState().environment,
-      data: entities,
-      timelineEvents: useSpatialEditorStore.getState().timelineEvents
+  // =========================================================
+  // NATIVE DESKTOP FS INTEGRATION (Tauri / Chrome API)
+  // =========================================================
+  
+  const handleSaveProject = async () => {
+    const state = useSpatialEditorStore.getState();
+    const projectData = {
+      version: "Veil-Studio-1.0",
+      environment: state.environment,
+      entities: state.entities,
+      sortingLayers: state.sortingLayers,
+      timelineEvents: state.timelineEvents,
+      drawingStrokes: state.drawingStrokes
     };
-    
-    // Simulate FS operations
-    EventBus.emit('EXECUTE_EVENT', {
-      type: 'SYSTEM_FS',
-      action: 'MOCK_SAVE_SUCCESS',
-      payload: { path: projectPath, sizeBytes: JSON.stringify(data).length }
-    });
+
+    const jsonStr = JSON.stringify(projectData, null, 2);
+
+    try {
+      if ('showSaveFilePicker' in window) {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: projectPath || 'my_scene.veil',
+          types: [{ description: 'Veil Engine Project', accept: { 'application/json': ['.veil', '.json'] } }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(jsonStr);
+        await writable.close();
+        
+        setProjectPath(handle.name);
+      } else {
+        // Fallback for isolated web environments
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = projectPath || 'my_scene.veil';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+      
+      EventBus.emit('EXECUTE_EVENT', {
+        type: 'SYSTEM_FS',
+        action: 'PROJECT_SAVE_SUCCESS',
+        payload: { sizeBytes: jsonStr.length }
+      });
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.error('Failed to save project:', err);
+      }
+    }
   };
 
-  const handleRestoreProject = () => {
-    // Force reset simulation
-    if (isSimulating) {
-      handleStopSimulation();
-    }
+  const handleRestoreProject = async () => {
+    if (isSimulating) handleStopSimulation();
 
-    if (compiledManifest) {
-      loadProjectManifest(compiledManifest);
-      EventBus.emit('EXECUTE_EVENT', {
-        type: 'SYSTEM_FS',
-        action: 'MOCK_RESTORE_SUCCESS',
-        payload: { path: projectPath }
-      });
-    } else {
-      EventBus.emit('EXECUTE_EVENT', {
-        type: 'SYSTEM_FS',
-        action: 'MOCK_RESTORE_FAIL',
-        payload: { error: 'No compiled manifest history to restore.' }
-      });
+    try {
+      if ('showOpenFilePicker' in window) {
+        const [handle] = await (window as any).showOpenFilePicker({
+          types: [{ description: 'Veil Engine Project', accept: { 'application/json': ['.veil', '.json'] } }]
+        });
+        const file = await handle.getFile();
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        
+        loadProjectManifest(parsed);
+        setProjectPath(handle.name);
+
+        EventBus.emit('EXECUTE_EVENT', {
+          type: 'SYSTEM_FS',
+          action: 'PROJECT_LOAD_SUCCESS',
+          payload: { filename: handle.name }
+        });
+      } else {
+        // Fallback file input trigger for isolated web
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.veil,.json';
+        input.onchange = (e: any) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            try {
+              const parsed = JSON.parse(ev.target?.result as string);
+              loadProjectManifest(parsed);
+              setProjectPath(file.name);
+            } catch (err) {
+              alert('Failed to parse Veil Project file.');
+            }
+          };
+          reader.readAsText(file);
+        };
+        input.click();
+      }
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.error('Failed to load project:', err);
+      }
     }
   };
 
   const handleExportScene = async () => {
     try {
-      // 1. Compile state into the formal VeilProjectManifest
       const manifest = await triggerCompile();
-      
-      // 2. Format JSON beautifully
       const jsonStr = JSON.stringify(manifest, null, 2);
       
-      // 3. Initiate browser anchor download stream
-      const blob = new Blob([jsonStr], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `veil_scene_${Date.now()}_manifest.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      if ('showSaveFilePicker' in window) {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: `veil_manifest_${Date.now()}.json`,
+          types: [{ description: 'Veil Compiled Manifest', accept: { 'application/json': ['.json'] } }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(jsonStr);
+        await writable.close();
+      } else {
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `veil_manifest_${Date.now()}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
 
-      // 4. Log the state success event
       EventBus.emit('EXECUTE_EVENT', {
         type: 'SYSTEM_FS',
         action: 'EXPORT_SUCCESS',
-        payload: { filename: `veil_scene_${Date.now()}_manifest.json`, sizeBytes: jsonStr.length }
+        payload: { sizeBytes: jsonStr.length }
       });
     } catch (err: any) {
-      console.error('Exporting manifest failed:', err);
-      EventBus.emit('EXECUTE_EVENT', {
-        type: 'SYSTEM_FS',
-        action: 'EXPORT_FAILED',
-        payload: { error: err.message || 'Failure during active compilation export.' }
-      });
+      if (err.name !== 'AbortError') {
+        console.error('Exporting manifest failed:', err);
+        EventBus.emit('EXECUTE_EVENT', {
+          type: 'SYSTEM_FS',
+          action: 'EXPORT_FAILED',
+          payload: { error: err.message || 'Failure during active compilation export.' }
+        });
+      }
     }
   };
 
@@ -241,8 +311,7 @@ export default function App() {
       }
     };
     reader.readAsText(file);
-    // Reset target input to allow loading the same file again if refreshed
-    e.target.value = '';
+    e.target.value = ''; // Reset target
   };
 
   return (
@@ -251,7 +320,7 @@ export default function App() {
     }`} id="veil-engine-studio-ide">
       
       {/* 1. TOP CONTROL BAR */}
-      <header className={`h-9 flex items-center justify-between px-3 shrink-0 shadow-sm transition-colors ${
+      <header className={`h-9 flex items-center justify-between px-3 shrink-0 shadow-sm transition-colors z-50 ${
         theme === 'LIGHT' ? 'bg-[#E5E5EA] border-b border-[#D1D1D6]' : 'bg-[#1A1A1E] border-b border-[#2D2D33]'
       }`}>
         
@@ -267,7 +336,7 @@ export default function App() {
           </div>
           <div className={`h-4 w-[1px] ${theme === 'LIGHT' ? 'bg-[#D1D1D6]' : 'bg-[#2D2D33]'}`} />
           <div className="flex items-center gap-1 text-[10px] font-mono">
-            <span className={`${theme === 'LIGHT' ? 'text-[#55555C]' : 'text-[#A0A0AA]'} font-semibold`}>{projectPath}</span>
+            <span className={`${theme === 'LIGHT' ? 'text-[#55555C]' : 'text-[#A0A0AA]'} font-semibold`}>{projectPath || 'untitled.veil'}</span>
             <span className={`${theme === 'LIGHT' ? 'text-[#8E8E93]' : 'text-[#71717A]'}`}>&gt;</span>
             <span className="text-[#7C3AED] font-bold">scene_layout_3d</span>
           </div>
@@ -310,10 +379,10 @@ export default function App() {
           </button>
         </div>
 
-        {/* Core Editor Gizmos Toggles Menu */}
+        {/* Core Editor Gizmos Toggles Menu (Disabled during simulation) */}
         <div className={`flex items-center border rounded overflow-hidden p-0.5 transition-colors ${
           theme === 'LIGHT' ? 'bg-[#FFFFFF] border-[#D1D1D6]' : 'bg-[#141417] border-[#2D2D33]'
-        }`} id="gizmo-mode-toggles-menu" title="Hotkeys: Q, W, E, R">
+        } ${isSimulating ? 'opacity-40 pointer-events-none' : ''}`} id="gizmo-mode-toggles-menu" title="Hotkeys: Q, W, E, R">
           {(['SELECT', 'TRANSLATE', 'ROTATE', 'SCALE', 'DRAW'] as const)
             .filter((mode) => mode !== 'DRAW' || activeWorkspace === 'ARTIST')
             .map((mode) => {
@@ -360,13 +429,13 @@ export default function App() {
           {/* Project File Actions */}
           <div className={`flex items-center border rounded overflow-hidden p-0.5 transition-colors ${
             theme === 'LIGHT' ? 'bg-[#FFFFFF] border-[#D1D1D6]' : 'bg-[#252529]/60 border-[#2D2D33]'
-          }`} id="project-file-actions-toolbar">
+          } ${isSimulating ? 'opacity-40 pointer-events-none' : ''}`} id="project-file-actions-toolbar">
             <button
               onClick={handleSaveProject}
               className={`p-1 rounded-sm transition cursor-pointer ${
                 theme === 'LIGHT' ? 'text-[#55555C] hover:text-[#1C1C1E] hover:bg-[#E5E5EA]' : 'text-[#A0A0AA] hover:text-white hover:bg-[#2D2D33]'
               }`}
-              title="Save project specs internally"
+              title="Save project file (.veil)"
             >
               <Save className="w-3 h-3" />
             </button>
@@ -375,25 +444,24 @@ export default function App() {
               className={`p-1 rounded-sm transition cursor-pointer ${
                 theme === 'LIGHT' ? 'text-[#55555C] hover:text-[#1C1C1E] hover:bg-[#E5E5EA]' : 'text-[#A0A0AA] hover:text-white hover:bg-[#2D2D33]'
               }`}
-              title="Restore project manifest history internally"
+              title="Open project file (.veil)"
             >
               <FolderOpen className="w-3 h-3" />
             </button>
             
-            <div className={`w-[1px] h-3 mx-1 ${theme === 'LIGHT' ? 'bg-zinc-350 bg-zinc-300' : 'bg-[#2D2D33]'}`} />
+            <div className={`w-[1px] h-3 mx-1 ${theme === 'LIGHT' ? 'bg-[#D1D1D6]' : 'bg-[#2D2D33]'}`} />
 
             <button
               onClick={handleExportScene}
-              className={`p-1 rounded-sm transition cursor-pointer flex items-center justify-center text-purple-400 hover:text-purple-300 hover:bg-purple-500/15`}
-              title="Export Current Scene (Triggers a JSON manifest file download of hand-drawn lines & coordinates)"
-              id="export-scene-manifest-btn"
+              className="p-1 rounded-sm transition cursor-pointer flex items-center justify-center text-purple-400 hover:text-purple-300 hover:bg-purple-500/15"
+              title="Compile & Export Scene Manifest JSON"
             >
               <Download className="w-3.5 h-3.5" />
             </button>
 
             <label
-              className={`p-1 rounded-sm transition cursor-pointer flex items-center justify-center text-emerald-400 hover:text-emerald-350 hover:bg-emerald-500/15`}
-              title="Import Scene (Uploads/restores a hand-drawn vector JSON manifest)"
+              className="p-1 rounded-sm transition cursor-pointer flex items-center justify-center text-emerald-400 hover:text-emerald-350 hover:bg-emerald-500/15"
+              title="Import compiled Scene Manifest JSON"
             >
               <Upload className="w-3.5 h-3.5" />
               <input 
@@ -498,6 +566,7 @@ export default function App() {
                 ? 'bg-red-600 hover:bg-red-500 text-white animate-pulse'
                 : 'bg-[#7C3AED] hover:bg-[#8B5CF6] text-white shadow-sm'
             }`}
+            title={isSimulating ? 'Stop runtime (ESC)' : 'Compile & Play'}
           >
             {isSimulating ? <Square className="w-3 h-3 fill-white" /> : <Play className="w-3 h-3 fill-white" />}
             <span>{isSimulating ? 'STOP' : 'PLAY'}</span>
@@ -509,7 +578,7 @@ export default function App() {
       <div className="flex-1 flex overflow-hidden min-h-0">
         
         {/* Left column: Hierarchy list */}
-        <aside className={`w-64 max-w-xs shrink-0 flex flex-col min-h-0 border-r transition-colors ${
+        <aside className={`w-64 max-w-xs shrink-0 flex flex-col min-h-0 border-r transition-colors z-40 ${
           theme === 'LIGHT' ? 'border-[#D1D1D6]' : 'border-[#2D2D33]'
         }`}>
           <HierarchyPanel workspace={activeWorkspace} theme={theme} />
@@ -570,7 +639,7 @@ export default function App() {
         </main>
 
         {/* Right column: Inspect variables panel */}
-        <aside className={`w-64 max-w-xs shrink-0 flex flex-col min-h-0 border-l transition-colors ${
+        <aside className={`w-64 max-w-xs shrink-0 flex flex-col min-h-0 border-l transition-colors z-40 ${
           theme === 'LIGHT' ? 'border-[#D1D1D6]' : 'border-[#2D2D33]'
         }`}>
           <InspectorPanel workspace={activeWorkspace} theme={theme} />
@@ -578,7 +647,7 @@ export default function App() {
       </div>
 
       {/* 3. BOTTOM SEQUENCER & TERMINAL DECK */}
-      <footer className={`h-56 border-t shrink-0 flex min-h-0 transition-colors ${
+      <footer className={`h-56 border-t shrink-0 flex min-h-0 transition-colors z-40 ${
         theme === 'LIGHT' ? 'bg-[#FFFFFF] border-[#D1D1D6]' : 'bg-[#1A1A1E] border-[#2D2D33]'
       }`}>
         {activeWorkspace === 'ARTIST' ? (
@@ -594,4 +663,3 @@ export default function App() {
     </div>
   );
 }
-

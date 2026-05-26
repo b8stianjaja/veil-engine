@@ -2,11 +2,12 @@
  * @file src/components/SimulationOverlay.tsx
  * @description Renders the compiled 2D hand-drawn sprite runtime environment.
  * Maps coordinates, layers (bg, gp, fg), live health indicators, dialogue screens, and scoring.
- * ENHANCED: Utilizes a Unified Master requestAnimationFrame Loop for perfectly smooth, tear-free particle and camera physics.
+ * ENHANCED: Features a Unified Master Loop integrating GSAP-style timeline tweens and Sprite-sheet frame swaps evaluated by the AnimationDirector.
  */
 
 import React, { useState, useEffect, useRef } from 'react';
 import EventBus from '../engine/protocol/EventBus';
+import AnimationDirector from '../engine/systems/AnimationDirector';
 import { VeilProjectManifest } from '../types';
 import { ShieldAlert, Trophy, Award, Keyboard, Compass } from 'lucide-react';
 import { HeroKnight, StonePillar, GoldStar, SpikeTrap, CrystalRotator, ScenicTree } from './SgAssets';
@@ -29,6 +30,17 @@ interface LiveParticle {
   life: number;
 }
 
+interface ActiveTween {
+  uuid: string;
+  channel: string;
+  scaleX: number;
+  duration: number;
+  yoyo: boolean;
+  repeat: number;
+  elapsed: number;
+  cycleCount: number;
+}
+
 export default function SimulationOverlay({ manifest, theme = 'DARK', workspace = 'ARTIST' }: SimulationOverlayProps) {
   const { layerVisibility } = useSpatialEditorStore();
   const [positions, setPositions] = useState<Record<string, [number, number, number]>>({});
@@ -40,10 +52,7 @@ export default function SimulationOverlay({ manifest, theme = 'DARK', workspace 
   const [dialogueText, setDialogueText] = useState<string | null>(null);
   const [particles, setParticles] = useState<LiveParticle[]>([]);
 
-  // Keyboard helper state keys mapping
   const [keysState, setKeysState] = useState<Record<string, boolean>>({ w: false, a: false, s: false, d: false });
-
-  // Hot Game Modes / Curation Objectives
   const [totalStars, setTotalStars] = useState<number>(0);
   const [gameResult, setGameResult] = useState<'PLAYING' | 'VICTORY' | 'GAMEOVER'>('PLAYING');
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
@@ -51,27 +60,30 @@ export default function SimulationOverlay({ manifest, theme = 'DARK', workspace 
   const simStartTimeRef = useRef<number>(Date.now());
   const particlesRef = useRef<LiveParticle[]>([]);
   
-  // Camera center coordinates representation
   const [camX, setCamX] = useState<number>(0);
   const [camY, setCamY] = useState<number>(0);
   const [cameraLock, setCameraLock] = useState<boolean>(workspace === 'DEVELOPER');
   
-  // Mutable refs for the Master Animation Loop to avoid stale closures without triggering React renders
+  // Real-time Visual Mutators (Evaluated outside React's state tree for 60fps performance)
   const camPosRef = useRef({ x: 0, y: 0 });
   const targetPosRef = useRef({ x: 0, y: 0 });
   const cameraLockRef = useRef(cameraLock);
   const gameResultRef = useRef(gameResult);
+  
+  // Timeline sequence integration refs
+  const activeTweensRef = useRef<ActiveTween[]>([]);
+  const tweenVisualsRef = useRef<Record<string, { scale: number, opacity: number }>>({});
+  const spriteFramesRef = useRef<Record<string, number>>({});
 
   const viewportWidth = 600;
   const viewportHeight = 350;
 
-  // Keep Refs synchronized with React State
   useEffect(() => { particlesRef.current = particles; }, [particles]);
   useEffect(() => { cameraLockRef.current = cameraLock; }, [cameraLock]);
   useEffect(() => { gameResultRef.current = gameResult; }, [gameResult]);
   useEffect(() => { setCameraLock(workspace === 'DEVELOPER'); }, [workspace]);
 
-  // Boot initialization
+  // Boot initialization & Sequence Kickoff
   useEffect(() => {
     if (!manifest) return;
     const allLayers = [...(manifest.layers.background || []), ...(manifest.layers.gameplay || []), ...(manifest.layers.foreground || [])];
@@ -89,9 +101,15 @@ export default function SimulationOverlay({ manifest, theme = 'DARK', workspace 
     setGameResult('PLAYING');
     simStartTimeRef.current = Date.now();
     setElapsedSeconds(0);
+
+    // Boot the primary configured sequence
+    if (manifest.timelineEvents && manifest.timelineEvents.length > 0) {
+      AnimationDirector.reset();
+      AnimationDirector.playSequence(manifest.timelineEvents[0].id, manifest.timelineEvents);
+    }
   }, [manifest]);
 
-  // Update target coordinates based on actual physics simulation output
+  // Track physical targets
   useEffect(() => {
     if (!manifest) return;
     const playerEnt = [...(manifest.layers.background || []), ...(manifest.layers.gameplay || []), ...(manifest.layers.foreground || [])]
@@ -103,23 +121,62 @@ export default function SimulationOverlay({ manifest, theme = 'DARK', workspace 
   }, [positions, manifest]);
 
   // ============================================================================
-  // THE MASTER LOOP: Unified Engine Rendering Ticker (Replaces all setIntervals)
+  // THE MASTER LOOP: Unified Engine Rendering Ticker
   // ============================================================================
   useEffect(() => {
     let frameId: number;
     let lastTime = performance.now();
 
     const engineLoop = (time: number) => {
-      // Normalize delta time to 60fps baseline scalar for consistent physics speed on any monitor Hz
-      const dt = (time - lastTime) / 16.666; 
+      const deltaMs = time - lastTime;
+      const dt = deltaMs / 16.666; // 60fps normalized scalar
+      const deltaSec = deltaMs / 1000.0;
       lastTime = time;
 
-      // 1. Timer Logic
       if (gameResultRef.current === 'PLAYING') {
         setElapsedSeconds(parseFloat(((Date.now() - simStartTimeRef.current) / 1000).toFixed(1)));
+        
+        // Evaluate Timeline Core
+        AnimationDirector.tick(deltaSec);
       }
 
-      // 2. Camera Lerp Logic (Smooth dampening)
+      // Evaluate Active Tweens (GSAP Lightweight Replica)
+      const nextTweens = [];
+      for (const t of activeTweensRef.current) {
+        t.elapsed += deltaSec;
+        let progress = t.elapsed / t.duration;
+        let isDone = progress >= 1;
+
+        if (isDone) {
+          if (t.repeat === -1 || t.cycleCount < t.repeat) {
+            t.elapsed = 0;
+            t.cycleCount++;
+            progress = 0;
+            isDone = false;
+          } else {
+            progress = 1;
+          }
+        }
+
+        // Sine easing interpolation
+        let ease = progress;
+        if (t.yoyo) {
+          ease = Math.sin(progress * Math.PI);
+        }
+
+        if (!tweenVisualsRef.current[t.uuid]) tweenVisualsRef.current[t.uuid] = { scale: 1, opacity: 1 };
+
+        if (t.channel === 'scale2d') {
+          tweenVisualsRef.current[t.uuid].scale = 1 + (t.scaleX - 1) * ease;
+        } else if (t.channel === 'opacity') {
+          tweenVisualsRef.current[t.uuid].opacity = 1 - ease;
+        }
+
+        if (!isDone) nextTweens.push(t);
+      }
+      activeTweensRef.current = nextTweens;
+
+      // Camera Lerp Logic
       let nextCamX = camPosRef.current.x;
       let nextCamY = camPosRef.current.y;
       
@@ -131,24 +188,23 @@ export default function SimulationOverlay({ manifest, theme = 'DARK', workspace 
         nextCamY += (0 - nextCamY) * (0.1 * dt);
       }
 
-      // If camera shifted, dynamically drift active particles to preserve absolute world-space illusion
       const dx = (nextCamX - camPosRef.current.x) * 40;
-      const dy = -(nextCamY - camPosRef.current.y) * 40; // Inverted Y
+      const dy = -(nextCamY - camPosRef.current.y) * 40; 
 
       camPosRef.current = { x: nextCamX, y: nextCamY };
       setCamX(nextCamX);
       setCamY(nextCamY);
 
-    // 3. Particle Physics Logic
+      // Particle Physics Logic
       if (particlesRef.current.length > 0) {
         setParticles(prev => 
-          prev.map((p: LiveParticle) => ({
+          prev.map(p => ({
             ...p,
             x: (p.x - dx) + (p.vx * dt),
             y: (p.y - dy) + (p.vy * dt),
-            vy: p.vy + (0.15 * dt), // Gravity pull
+            vy: p.vy + (0.15 * dt),
             life: p.life - (0.04 * dt)
-          })).filter((p: LiveParticle) => p.life > 0)
+          })).filter(p => p.life > 0)
         );
       }
 
@@ -157,7 +213,7 @@ export default function SimulationOverlay({ manifest, theme = 'DARK', workspace 
 
     frameId = requestAnimationFrame(engineLoop);
     return () => cancelAnimationFrame(frameId);
-  }, []); // Run infinitely, bound to refs
+  }, []);
 
   // Keyboard mappings
   useEffect(() => {
@@ -188,36 +244,7 @@ export default function SimulationOverlay({ manifest, theme = 'DARK', workspace 
     };
   }, [gameResult]);
 
-  // Victory Condition Checker
-  useEffect(() => {
-    if (totalStars > 0 && collectedStarUuids.size === totalStars && gameResult === 'PLAYING') {
-      setGameResult('VICTORY');
-      const confetti = Array.from({ length: 45 }).map((_, i) => {
-        const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.2;
-        const speed = Math.random() * 7 + 5;
-        return {
-          id: Math.random() + i,
-          x: viewportWidth * (0.15 + Math.random() * 0.7),
-          y: viewportHeight - 10,
-          vx: Math.cos(angle) * speed,
-          vy: Math.sin(angle) * speed,
-          color: ['#FBBF24', '#10B981', '#3B82F6', '#EC4899', '#A855F7'][Math.floor(Math.random() * 5)],
-          size: Math.random() * 4.5 + 3,
-          life: 1.6
-        };
-      });
-      setParticles(prev => [...prev, ...confetti]);
-    }
-  }, [collectedStarUuids, totalStars, gameResult]);
-
-  const mapToScreenCoords = (pos: [number, number, number]) => {
-    const scaleFactor = 40;
-    return { 
-      x: (viewportWidth / 2) + ((pos[0] - camX) * scaleFactor), 
-      y: (viewportHeight / 2) - ((pos[1] - camY) * scaleFactor) 
-    };
-  };
-
+  // Timeline Hooks & Gameplay Triggers
   useEffect(() => {
     const handleTick = (data: { positions: Record<string, [number, number, number]>; rotations: Record<string, [number, number, number]> }) => {
       if (gameResult !== 'PLAYING') return;
@@ -299,19 +326,6 @@ export default function SimulationOverlay({ manifest, theme = 'DARK', workspace 
       if (gameResult !== 'PLAYING') return;
       setDialogueText(`COMPILER TRIGGER SECURED: Navigated sensor area of '${data.name}'.`);
       setTimeout(() => setDialogueText(null), 3000);
-
-      const pxCoords = mapToScreenCoords(positions[data.uuid] || [0,0,0]);
-      const newSparks = Array.from({ length: 8 }).map((_, i) => ({
-        id: Math.random() + i,
-        x: pxCoords.x,
-        y: pxCoords.y,
-        vx: (Math.random() - 0.5) * 4,
-        vy: (Math.random() - 0.5) * 4 - 1,
-        color: '#60A5FA',
-        size: Math.random() * 3 + 2,
-        life: 0.9
-      }));
-      setParticles(prev => [...prev, ...newSparks]);
     };
 
     const handleExecuteEvent = (data: any) => {
@@ -321,11 +335,30 @@ export default function SimulationOverlay({ manifest, theme = 'DARK', workspace 
       }
     };
 
+    const handleBatchSpriteUpdate = (data: Record<string, number>) => {
+      spriteFramesRef.current = { ...spriteFramesRef.current, ...data };
+    };
+
+    const handleGsapLaunch = (data: any) => {
+      activeTweensRef.current.push({
+        uuid: data.targetUuid,
+        channel: data.channel,
+        scaleX: data.timeline?.scaleX || 1.2,
+        duration: data.timeline?.duration || 1.5,
+        yoyo: data.timeline?.yoyo ?? true,
+        repeat: data.timeline?.repeat ?? -1,
+        elapsed: 0,
+        cycleCount: 0
+      });
+    };
+
     EventBus.on('SIMULATION_TICK', handleTick);
     EventBus.on('PLAYER_COLLECTED', handleCollected);
     EventBus.on('PLAYER_HIT_HAZARD', handleHazard);
     EventBus.on('TRIGGER_ACTIVATED', handleTrigger);
     EventBus.on('EXECUTE_EVENT', handleExecuteEvent);
+    EventBus.on('BATCH_SPRITE_UPDATE', handleBatchSpriteUpdate);
+    EventBus.on('ENGINE_GSAP_LAUNCH', handleGsapLaunch);
 
     return () => {
       EventBus.off('SIMULATION_TICK', handleTick);
@@ -333,8 +366,18 @@ export default function SimulationOverlay({ manifest, theme = 'DARK', workspace 
       EventBus.off('PLAYER_HIT_HAZARD', handleHazard);
       EventBus.off('TRIGGER_ACTIVATED', handleTrigger);
       EventBus.off('EXECUTE_EVENT', handleExecuteEvent);
+      EventBus.off('BATCH_SPRITE_UPDATE', handleBatchSpriteUpdate);
+      EventBus.off('ENGINE_GSAP_LAUNCH', handleGsapLaunch);
     };
   }, [positions, manifest, keysState, gameResult]);
+
+  const mapToScreenCoords = (pos: [number, number, number]) => {
+    const scaleFactor = 40;
+    return { 
+      x: (viewportWidth / 2) + ((pos[0] - camX) * scaleFactor), 
+      y: (viewportHeight / 2) - ((pos[1] - camY) * scaleFactor) 
+    };
+  };
 
   const triggerSimKeyDown = (keyChar: string) => {
     if (gameResult !== 'PLAYING') return;
@@ -353,6 +396,8 @@ export default function SimulationOverlay({ manifest, theme = 'DARK', workspace 
     setDialogueText("CORE REHEATED: Sim re-compiled with clean states.");
     setGameResult('PLAYING');
     setParticles([]);
+    activeTweensRef.current = [];
+    tweenVisualsRef.current = {};
     simStartTimeRef.current = Date.now();
     setElapsedSeconds(0);
     
@@ -432,12 +477,17 @@ export default function SimulationOverlay({ manifest, theme = 'DARK', workspace 
 
         {isHitFlashing && <div className="absolute inset-0 bg-red-600/25 border-4 border-red-500 backdrop-blur-[0.5px] z-40 pointer-events-none animate-pulse" />}
 
-        {/* World Entities */}
+        {/* World Entities (Evaluated with Timeline Sequence Transforms) */}
         <div className="absolute w-[600px] h-[350px] border border-gray-900/40 rounded overflow-hidden">
           {renderList.map((ent, idx) => {
             const { x, y } = mapToScreenCoords(ent.currentPos);
-            const sizeX = ent.behavior === 'PLAYER' ? 52 : ent.renderMeta.scale2d[0] * 42;
-            const sizeY = ent.behavior === 'PLAYER' ? 52 : ent.renderMeta.scale2d[1] * 42;
+            
+            // Retrieve Sequence Evaluation parameters injected by AnimationDirector
+            const tweenMod = tweenVisualsRef.current[ent.uuid] || { scale: 1, opacity: 1 };
+            const activeSpriteFrame = spriteFramesRef.current[ent.uuid] || 0;
+
+            const sizeX = (ent.behavior === 'PLAYER' ? 52 : ent.renderMeta.scale2d[0] * 42) * tweenMod.scale;
+            const sizeY = (ent.behavior === 'PLAYER' ? 52 : ent.renderMeta.scale2d[1] * 42) * tweenMod.scale;
             const isMoving = keysState.w || keysState.a || keysState.s || keysState.d;
             
             let heroDirection: 'left' | 'right' | 'up' | 'down' = 'right';
@@ -457,7 +507,20 @@ export default function SimulationOverlay({ manifest, theme = 'DARK', workspace 
             }
 
             return (
-              <div key={idx} className="absolute transition-all duration-75 flex flex-col justify-center items-center select-none" style={{ left: `${x}px`, top: `${y}px`, width: `${sizeX}px`, height: `${sizeY}px`, transform: `translate(-50%, -50%) rotate(${ent.behavior === 'PLAYER' ? 0 : ent.currentRotZ}rad)` }}>
+              <div 
+                key={idx} 
+                className="absolute transition-all duration-75 flex flex-col justify-center items-center select-none" 
+                style={{ 
+                  left: `${x}px`, 
+                  top: `${y}px`, 
+                  width: `${sizeX}px`, 
+                  height: `${sizeY}px`, 
+                  transform: `translate(-50%, -50%) rotate(${ent.behavior === 'PLAYER' ? 0 : ent.currentRotZ}rad)`,
+                  opacity: tweenMod.opacity,
+                  // CSS filter applied purely to visually verify SPRITE_FRAME evaluation is registering over time!
+                  filter: activeSpriteFrame > 0 ? `hue-rotate(${activeSpriteFrame * 45}deg)` : 'none'
+                }}
+              >
                 <div className="w-full h-full relative">{elementVisual}</div>
                 <div className="absolute -bottom-4 bg-black/85 border border-gray-800/80 text-[7px] font-mono px-1 py-0.2 rounded opacity-0 hover:opacity-100 transition-opacity pointer-events-none select-none whitespace-nowrap z-30">
                   {ent.name} ({ent.currentPos[0].toFixed(1)}, {ent.currentPos[1].toFixed(1)})
@@ -466,10 +529,9 @@ export default function SimulationOverlay({ manifest, theme = 'DARK', workspace 
             );
           })}
 
-       
-          {particles.map((p: LiveParticle) => (
-            <div
-              key={p.id} className="absolute rounded-full pointer-events-none select-none transition-transform" style={{ left: `${p.x}px`, top: `${p.y}px`, width: `${p.size}px`, height: `${p.size}px`, backgroundColor: p.color, opacity: p.life, boxShadow: `0 0 10px ${p.color}`, transform: 'translate(-50%, -50%) scale(1)' }} />
+          {/* Render Active Particles layer */}
+          {particles.map((p) => (
+            <div key={p.id} className="absolute rounded-full pointer-events-none select-none transition-transform" style={{ left: `${p.x}px`, top: `${p.y}px`, width: `${p.size}px`, height: `${p.size}px`, backgroundColor: p.color, opacity: p.life, boxShadow: `0 0 10px ${p.color}`, transform: 'translate(-50%, -50%) scale(1)' }} />
           ))}
 
           {/* Scalable Freehand Drawings Layer */}

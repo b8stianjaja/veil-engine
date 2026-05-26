@@ -3,6 +3,7 @@
  * @description List hierarchy showing active entities, sorted into rendering layers for Artists or behavioral archetypes for Developers.
  * Allows instantiating/synthesizing new spatial nodes matching the current role.
  * UI/UX Consolidated: Tool configurations (Brushes, Camera Anchors) are offloaded to Inspector & Canvas.
+ * RECONCILED: Entity spawning perfectly maps SgAssets behavior to Sprite Flipbook metadata.
  */
 
 import React, { useState } from 'react';
@@ -81,23 +82,32 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
   const [artistPreset, setArtistPreset] = useState<'SPRITE' | 'BACKGROUND' | 'DECORATION' | 'PARTICLE'>('SPRITE');
   const [artistColor, setArtistColor] = useState<string>('#3B82F6');
 
+  // UNIVERSAL ASSET RECONCILER
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
-    const name = newEntityName.trim() || `${workspace === 'ARTIST' ? 'Sprite' : 'Actor'}_${Math.random().toString(36).substring(7).toUpperCase()}`;
-
+    
     let behavior: BehaviorType = newEntityBehavior;
     let type: GeometryType = newEntityType;
     let color = artistColor;
     let zCoord = 0;
+    
+    let finalName = newEntityName.trim();
+    if (!finalName) {
+      if (workspace === 'ARTIST' && artistPreset === 'DECORATION') {
+        finalName = `Tree_${Math.random().toString(36).substring(7).toUpperCase()}`;
+      } else {
+        finalName = `${workspace === 'ARTIST' ? 'Sprite' : 'Actor'}_${Math.random().toString(36).substring(7).toUpperCase()}`;
+      }
+    }
 
+    // 1. Resolve intended behavior & basic attributes from workspace contexts
     if (workspace === 'ARTIST') {
-      // Create defaults suited for designers
       if (artistPreset === 'BACKGROUND') {
         zCoord = -15; // Far Background
         behavior = 'STATIC';
         type = 'BOX';
       } else if (artistPreset === 'DECORATION') {
-        zCoord = -5;
+        zCoord = -5; // Scenic Prop depth
         behavior = 'STATIC';
         type = 'MESH';
       } else if (artistPreset === 'PARTICLE') {
@@ -110,23 +120,44 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
         type = 'BOX';
       }
     } else {
-      // Logic behavior rules for developers
-      if (behavior === 'PLAYER') color = '#10B981';
-      else if (behavior === 'ROTATOR') color = '#A855F7';
-      else if (behavior === 'COLLECTIBLE') {
-        zCoord = -12;
-        color = '#FBF236';
-      } else if (behavior === 'HAZARD') {
-        zCoord = 12;
-        color = '#EF4444';
-      } else if (behavior === 'TRIGGER') {
-        color = '#EAB308';
-      }
+      if (behavior === 'COLLECTIBLE') zCoord = -12;
+      else if (behavior === 'HAZARD') zCoord = 12;
+    }
+
+    // 2. Reconcile Asset Metadata strictly tied to Behavior (Lights up the Inspector Panel automatically)
+    let assetFilename: string | null = null;
+    let animationConfig: any = null;
+
+    if (behavior === 'PLAYER') {
+      color = workspace === 'ARTIST' ? artistColor : '#10B981';
+      assetFilename = 'hero_sprite_sheet.png';
+      animationConfig = { frameCount: 4, frameDuration: 0.1, loop: true, autoPlay: true };
+    } else if (behavior === 'ROTATOR') {
+      color = workspace === 'ARTIST' ? artistColor : '#A855F7';
+      assetFilename = 'nexus_core.png';
+      animationConfig = { frameCount: 8, frameDuration: 0.05, loop: true, autoPlay: true };
+    } else if (behavior === 'COLLECTIBLE') {
+      color = workspace === 'ARTIST' ? artistColor : '#FBF236';
+      assetFilename = 'star.png';
+      animationConfig = { frameCount: 1, frameDuration: 1, loop: false, autoPlay: false };
+    } else if (behavior === 'HAZARD') {
+      color = workspace === 'ARTIST' ? artistColor : '#9E0B0B';
+      assetFilename = 'spikes.png';
+      animationConfig = null;
+    } else if (behavior === 'TRIGGER') {
+      color = workspace === 'ARTIST' ? artistColor : '#EAB308';
+      assetFilename = null;
+      animationConfig = null;
+    } else if (behavior === 'STATIC') {
+      color = workspace === 'ARTIST' ? artistColor : '#EF4444';
+      const isTree = finalName.toLowerCase().includes('tree') || artistPreset === 'DECORATION';
+      assetFilename = isTree ? 'cherry_tree.png' : 'stone_pillar.png';
+      animationConfig = null;
     }
 
     const newEnt: Entity = {
       uuid: `uuid-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      name,
+      name: finalName,
       type,
       behavior,
       isSensor: ['COLLECTIBLE', 'HAZARD', 'TRIGGER'].includes(behavior),
@@ -136,13 +167,8 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
         rotation: [0, 0, 0],
         scale: [1, 1, 1]
       },
-      assetFilename: workspace === 'ARTIST' ? 'character_sheet.png' : null,
-      animationConfig: workspace === 'ARTIST' ? {
-        frameCount: 4,
-        frameDuration: 0.1,
-        loop: true,
-        autoPlay: true
-      } : null
+      assetFilename,
+      animationConfig
     };
 
     addEntity(newEnt);
@@ -151,23 +177,15 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
 
   const renderIcon = (behavior: BehaviorType) => {
     switch (behavior) {
-      case 'PLAYER':
-        return <Anchor className="w-3.5 h-3.5 text-emerald-500" />;
-      case 'ROTATOR':
-        return <Sparkles className="w-3.5 h-3.5 text-[#A855F7]" />;
-      case 'COLLECTIBLE':
-        return <Eye className="w-3.5 h-3.5 text-yellow-500" />;
-      case 'HAZARD':
-        return <AlertOctagon className="w-3.5 h-3.5 text-red-500" />;
-      case 'TRIGGER':
-        return <HelpCircle className="w-3.5 h-3.5 text-yellow-500" />;
-      case 'STATIC':
-      default:
-        return <Box className="w-3.5 h-3.5 text-blue-500" />;
+      case 'PLAYER': return <Anchor className="w-3.5 h-3.5 text-emerald-500" />;
+      case 'ROTATOR': return <Sparkles className="w-3.5 h-3.5 text-[#A855F7]" />;
+      case 'COLLECTIBLE': return <Eye className="w-3.5 h-3.5 text-yellow-500" />;
+      case 'HAZARD': return <AlertOctagon className="w-3.5 h-3.5 text-red-500" />;
+      case 'TRIGGER': return <HelpCircle className="w-3.5 h-3.5 text-yellow-500" />;
+      case 'STATIC': default: return <Box className="w-3.5 h-3.5 text-blue-500" />;
     }
   };
 
-  // Grouping for Developer View: Group by Behavior Archetype
   const allNodes = Object.values(entities);
   const developerGroups = {
     kinematic: allNodes.filter(e => ['PLAYER', 'ROTATOR'].includes(e.behavior)),
@@ -193,9 +211,6 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
       {/* Layer Groups / Archetypes Display */}
       <div className="flex-1 overflow-y-auto p-2 space-y-3.5 pr-1 scrollbar-thin">
         {workspace === 'ARTIST' ? (
-          /* ========================================================= */
-          /* ARTIST WORKSPACE: GROUP BY GRAPHICAL LAYER (Z DEPTHS)     */
-          /* ========================================================= */
           <>
             {/* Background Render Layer */}
             <div 
@@ -504,9 +519,6 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
             </div>
           </>
         ) : (
-          /* ========================================================= */
-          /* DEVELOPER WORKSPACE: GROUP BY PHYSICS & BEHAVIOR CLASS   */
-          /* ========================================================= */
           <>
             {/* Kinematic Controllers System */}
             <div>
@@ -652,7 +664,6 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
       } space-y-2.5 shrink-0`}>
         
         {workspace === 'ARTIST' && (
-          /* WORKSPACE MODE TOGGLES */
           <div className={`flex border rounded-sm p-0.5 overflow-hidden font-mono text-[9px] shrink-0 transition-colors ${
             theme === 'LIGHT' ? 'bg-[#F2F2F7] border-[#D1D1D6]' : 'bg-[#141417] border-[#2D2D33]'
           }`}>
@@ -684,7 +695,6 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
         )}
 
         {workspace === 'ARTIST' && activeToolMode === 'DRAW' ? (
-          /* CONSOLIDATED DRAWING DECK: Points to Inspector */
           <div className={`animate-fade-in border p-3.5 rounded-sm space-y-2.5 text-center transition-colors ${
             theme === 'LIGHT'
               ? 'bg-[#F2F2F7] border-[#D1D1D6] text-zinc-700'
@@ -718,7 +728,6 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
             </button>
           </div>
         ) : (
-          /* TRADITIONAL FORM CONFIG FOR SELECTIVE AND TYPICAL GENERATIONS */
           <form onSubmit={handleAdd} className="space-y-2.5">
             <label className={`text-[9px] font-mono uppercase block font-bold ${theme === 'LIGHT' ? 'text-[#55555C]' : 'text-[#71717A]'}`}>
               {workspace === 'ARTIST' ? 'Add Artboard Element' : 'Instantiate Behavior Node'}
@@ -737,7 +746,6 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
             />
 
             {workspace === 'ARTIST' ? (
-              /* PRESETS FORM FOR ARTISTS */
               <div className="grid grid-cols-2 gap-1.5 font-sans">
                 <div>
                   <label className={`text-[8px] font-mono block mb-0.5 ${theme === 'LIGHT' ? 'text-[#55555C]' : 'text-[#71717A]'}`}>Asset Type</label>
@@ -770,7 +778,6 @@ export default function HierarchyPanel({ workspace = 'ARTIST', theme = 'DARK' }:
                 </div>
               </div>
             ) : (
-              /* CONFIG FORM FOR DEVELOPERS */
               <div className="grid grid-cols-2 gap-1.5">
                 <div>
                   <label className={`text-[8px] font-mono block mb-0.5 ${theme === 'LIGHT' ? 'text-[#55555C]' : 'text-[#71717A]'}`}>Rigid Profile</label>
