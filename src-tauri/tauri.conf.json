@@ -35,6 +35,17 @@
     ],
     "android": {
       "debugApplicationIdSuffix": ".debug"
+    },
+    "windows": {
+      "nsis": {
+        "sidebarImage": "./icons/sidebar.bmp",
+        "headerImage": "./icons/header.bmp",
+        "installerIcon": "./icons/installer-icon.ico",
+        "uninstallerIcon": "./icons/uninstaller-icon.ico",
+        "customLanguageFiles": {
+          "English": "./custom-strings.nsh"
+        }
+      }
     }
   }
 }
