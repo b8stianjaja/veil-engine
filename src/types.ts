@@ -21,16 +21,23 @@ export interface SpriteAnimationConfig {
   autoPlay: boolean;        // Play immediately on load
 }
 
+export interface PhysicsConfig {
+  speed: number;
+  rotationSpeed: number;
+  isSolid: boolean; // Explicit solid flag for collision
+}
+
 export interface Entity {
-  uuid: string;             // Secure UUIDv4 identifier
-  name: string;             // Human-readable debug name
-  type: GeometryType;       // Boundary geometry type
-  behavior: BehaviorType;   // Core logic archetype
-  isSensor: boolean;        // Overlap trigger setting (ignores solid physical collision if true)
-  color: string;            // Hex color code for editor visualization/debugging
+  uuid: string;
+  name: string;
+  type: GeometryType;
+  behavior: BehaviorType;
+  isSensor: boolean;
+  color: string;
   transform: Transformation3D;
-  assetFilename: string | null; // CSS, Canvas, or sprite visual asset indicator
+  assetFilename: string | null;
   animationConfig?: SpriteAnimationConfig | null;
+  physics?: PhysicsConfig; // NEW: Data-driven physics
 }
 
 export interface TimelineKeyframe {
