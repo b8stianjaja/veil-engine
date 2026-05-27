@@ -8,6 +8,141 @@ export type GeometryType = 'BOX' | 'SPHERE' | 'CAPSULE' | 'MESH';
 
 export type BehaviorType = 'STATIC' | 'PLAYER' | 'ROTATOR' | 'COLLECTIBLE' | 'HAZARD' | 'TRIGGER';
 
+// ============================================================================
+// BEHAVIOR TREE SYSTEM TYPES
+// ============================================================================
+
+export type TreeNodeType = 
+  | 'CONDITIONAL'   // If condition is true, proceed to child
+  | 'SEQUENCE'      // Execute children in order, stop on first failure
+  | 'PARALLEL'      // Execute all children simultaneously
+  | 'TRIGGER'       // Fire an event/action
+  | 'TRANSFORM'     // Animate entity transform (position/rotation/scale)
+  | 'ANIMATE'       // Play sprite animation
+  | 'EMIT'          // Emit particles
+  | 'WAIT';         // Wait for duration
+
+export type ComparisonOperator = '==' | '!=' | '>' | '<' | '>=' | '<=';
+
+export interface ConditionalNodeConfig {
+  property: 'behavior' | 'x' | 'y' | 'z' | 'custom'; // Entity property to check
+  operator: ComparisonOperator;
+  value: any;
+  childId?: string; // If true, execute this child node
+  elseChildId?: string; // If false, execute this child node
+}
+
+export interface SequenceNodeConfig {
+  childIds: string[]; // Execute in order
+}
+
+export interface ParallelNodeConfig {
+  childIds: string[]; // Execute simultaneously
+}
+
+export interface TriggerNodeConfig {
+  eventType: 'ON_COLLISION' | 'ON_ANIMATION_END' | 'CUSTOM_EVENT';
+  payload?: any;
+}
+
+export interface TransformNodeConfig {
+  targetProperty: 'position' | 'rotation' | 'scale';
+  targetValue: [number, number, number] | number;
+  duration: number; // seconds
+  easing?: 'linear' | 'easeIn' | 'easeOut' | 'easeInOut';
+}
+
+export interface AnimateNodeConfig {
+  frameStart: number;
+  frameEnd: number;
+  duration: number;
+  loop: boolean;
+}
+
+export interface EmitNodeConfig {
+  particleType: 'SPARK' | 'SMOKE' | 'STAR' | 'DUST';
+  count: number;
+  direction?: [number, number];
+}
+
+export interface WaitNodeConfig {
+  duration: number; // seconds
+}
+
+export interface BehaviorNode {
+  id: string; // Unique within tree
+  type: TreeNodeType;
+  name: string; // Human-readable label
+  config: 
+    | ConditionalNodeConfig
+    | SequenceNodeConfig
+    | ParallelNodeConfig
+    | TriggerNodeConfig
+    | TransformNodeConfig
+    | AnimateNodeConfig
+    | EmitNodeConfig
+    | WaitNodeConfig;
+}
+
+export interface BehaviorTree {
+  id: string; // UUID
+  name: string; // e.g., "PlayerMovement", "EnemyPatrol"
+  rootNodeId: string; // Points to BehaviorNode.id
+  nodes: Record<string, BehaviorNode>; // Map of nodeId → BehaviorNode
+  createdAt: number; // Timestamp
+  updatedAt: number; // Timestamp
+}
+
+export interface BehaviorTreeExecutionState {
+  treeId: string;
+  entityUuid: string;
+  currentNodeId: string;
+  startTime: number;
+  activeTimers: Record<string, number>; // Track waiting/animation timers
+  completionCallbacks?: ((success: boolean) => void)[];
+}
+
+// ============================================================================
+// ASSET PIPELINE TYPES
+// ============================================================================
+
+export interface SpriteFrameData {
+  frameIndex: number;
+  x: number; // Pixel offset in sprite sheet
+  y: number;
+  width: number;
+  height: number;
+  duration?: number; // Frame duration override
+}
+
+export interface AnimationClipDefinition {
+  name: string;
+  frames: SpriteFrameData[];
+  loop: boolean;
+  speed: number; // Frames per second
+}
+
+export interface SpriteSheetMetadata {
+  imageUrl: string;
+  gridWidth: number; // Number of columns
+  gridHeight: number; // Number of rows
+  frameWidth: number;
+  frameHeight: number;
+  animations?: Record<string, AnimationClipDefinition>;
+}
+
+export interface AssetDefinition {
+  id: string; // UUID
+  name: string;
+  type: 'SPRITE_SHEET' | 'ANIMATION_CLIP' | 'TEXTURE' | 'MODEL';
+  path: string; // File path relative to project
+  metadata: SpriteSheetMetadata | any;
+  tags: string[];
+  importedAt: number;
+  size: number; // File size in bytes
+  checksum: string; // For change detection
+}
+
 export interface Transformation3D {
   position: [number, number, number]; // [X,Y,Z]
   rotation: [number, number, number]; // [Pitch, Yaw, Roll] in radians
@@ -103,9 +238,14 @@ export interface SpatialEditorState {
     gameplay: string[];   // UUID list
     foreground: string[]; // UUID list
   };
+  behaviorTrees: Record<string, BehaviorTree>;
+  entityBehaviorTreeBindings: Record<string, string>; // entityUuid → treeId
+  assets: Record<string, AssetDefinition>;
 
   // Selection & UI Focus
   selectedUuid: string | null;
+  selectedTreeId: string | null;
+  selectedAssetId: string | null;
   activeToolMode: 'TRANSLATE' | 'ROTATE' | 'SCALE' | 'SELECT' | 'DRAW';
   activeViewportCamera: 'ISOMETRIC' | 'PERSPECTIVE' | 'DIMETRIC' | 'FLAT_2D';
   cameraZoom: number;
@@ -210,4 +350,18 @@ export interface SpatialEditorState {
   setTimelineEvents: (sequences: TimelineSequence[]) => void;
   triggerCompile: () => Promise<VeilProjectManifest>;
   reorderEntityLayer: (draggedUuid: string, targetLayer: 'background' | 'gameplay' | 'foreground', targetIndex: number) => void;
+
+  // Behavior Tree Management
+  addBehaviorTree: (tree: BehaviorTree) => void;
+  updateBehaviorTree: (treeId: string, tree: Partial<BehaviorTree>) => void;
+  deleteBehaviorTree: (treeId: string) => void;
+  setSelectedTreeId: (treeId: string | null) => void;
+  linkTreeToEntity: (entityUuid: string, treeId: string) => void;
+  unlinkTreeFromEntity: (entityUuid: string) => void;
+
+  // Asset Management
+  addAsset: (asset: AssetDefinition) => void;
+  updateAsset: (assetId: string, asset: Partial<AssetDefinition>) => void;
+  deleteAsset: (assetId: string) => void;
+  setSelectedAssetId: (assetId: string | null) => void;
 }

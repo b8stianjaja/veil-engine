@@ -6,7 +6,7 @@
  */
 
 import { create } from 'zustand';
-import { SpatialEditorState, Entity, TimelineSequence, VeilProjectManifest } from '../types';
+import { SpatialEditorState, Entity, TimelineSequence, VeilProjectManifest, BehaviorTree, AssetDefinition } from '../types';
 import { BakeProcessor } from '../engine/systems/BakeProcessor';
 
 const INITIAL_ENVIRONMENT = {
@@ -20,6 +20,11 @@ export const useSpatialEditorStore = create<SpatialEditorState>((set, get) => ({
   entities: {},
   sortingLayers: { background: [], gameplay: [], foreground: [] },
   selectedUuid: null,
+  selectedTreeId: null,
+  selectedAssetId: null,
+  behaviorTrees: {},
+  entityBehaviorTreeBindings: {},
+  assets: {},
   activeToolMode: 'TRANSLATE',
   layerVisibility: { background: true, gameplay: true, foreground: true },
   layerLock: { background: false, gameplay: false, foreground: false },
@@ -141,5 +146,94 @@ export const useSpatialEditorStore = create<SpatialEditorState>((set, get) => ({
   setProjectPath: (path) => set({ projectPath: path }),
   updateEnvironment: (env) => set((state) => ({ environment: { ...state.environment, ...env } })),
   setTimelineEvents: (sequences) => set({ timelineEvents: sequences }),
-  reorderEntityLayer: (draggedUuid, targetLayer, targetIndex) => set((state) => ({ /* reorder logic */ }))
+  reorderEntityLayer: (draggedUuid, targetLayer, targetIndex) => set((state) => ({ /* reorder logic */ })),
+
+  // Behavior Tree Management
+  addBehaviorTree: (tree: BehaviorTree) => set((state) => {
+    const EventBus = require('../engine/protocol/EventBus').default;
+    EventBus.emit('BEHAVIOR_TREE_UPDATED', tree);
+    return {
+      behaviorTrees: { ...state.behaviorTrees, [tree.id]: tree }
+    };
+  }),
+
+  updateBehaviorTree: (treeId: string, updates: Partial<BehaviorTree>) => set((state) => {
+    const tree = state.behaviorTrees[treeId];
+    if (!tree) return {};
+    const updatedTree = { ...tree, ...updates, updatedAt: Date.now() };
+    const EventBus = require('../engine/protocol/EventBus').default;
+    EventBus.emit('BEHAVIOR_TREE_UPDATED', updatedTree);
+    return {
+      behaviorTrees: { ...state.behaviorTrees, [treeId]: updatedTree }
+    };
+  }),
+
+  deleteBehaviorTree: (treeId: string) => set((state) => {
+    const updatedTrees = { ...state.behaviorTrees };
+    delete updatedTrees[treeId];
+    
+    // Unbind any entities using this tree
+    const updatedBindings = { ...state.entityBehaviorTreeBindings };
+    Object.entries(updatedBindings).forEach(([entityUuid, linkedTreeId]) => {
+      if (linkedTreeId === treeId) {
+        delete updatedBindings[entityUuid];
+      }
+    });
+
+    const EventBus = require('../engine/protocol/EventBus').default;
+    EventBus.emit('BEHAVIOR_TREE_DELETED', treeId);
+
+    return {
+      behaviorTrees: updatedTrees,
+      entityBehaviorTreeBindings: updatedBindings,
+      selectedTreeId: state.selectedTreeId === treeId ? null : state.selectedTreeId
+    };
+  }),
+
+  setSelectedTreeId: (treeId: string | null) => set({ selectedTreeId: treeId }),
+
+  linkTreeToEntity: (entityUuid: string, treeId: string) => set((state) => {
+    const EventBus = require('../engine/protocol/EventBus').default;
+    EventBus.emit('ENTITY_TREE_LINKED', { entityUuid, treeId });
+    return {
+      entityBehaviorTreeBindings: { ...state.entityBehaviorTreeBindings, [entityUuid]: treeId }
+    };
+  }),
+
+  unlinkTreeFromEntity: (entityUuid: string) => set((state) => {
+    const updatedBindings = { ...state.entityBehaviorTreeBindings };
+    delete updatedBindings[entityUuid];
+    const EventBus = require('../engine/protocol/EventBus').default;
+    EventBus.emit('ENTITY_TREE_UNLINKED', { entityUuid });
+    return {
+      entityBehaviorTreeBindings: updatedBindings
+    };
+  }),
+
+  // Asset Management
+  addAsset: (asset: AssetDefinition) => set((state) => {
+    return {
+      assets: { ...state.assets, [asset.id]: asset }
+    };
+  }),
+
+  updateAsset: (assetId: string, updates: Partial<AssetDefinition>) => set((state) => {
+    const asset = state.assets[assetId];
+    if (!asset) return {};
+    const updatedAsset = { ...asset, ...updates };
+    return {
+      assets: { ...state.assets, [assetId]: updatedAsset }
+    };
+  }),
+
+  deleteAsset: (assetId: string) => set((state) => {
+    const updatedAssets = { ...state.assets };
+    delete updatedAssets[assetId];
+    return {
+      assets: updatedAssets,
+      selectedAssetId: state.selectedAssetId === assetId ? null : state.selectedAssetId
+    };
+  }),
+
+  setSelectedAssetId: (assetId: string | null) => set({ selectedAssetId: assetId })
 }));

@@ -8,6 +8,7 @@
 
 import EventBus from './protocol/EventBus';
 import AnimationDirector from './systems/AnimationDirector';
+import { behaviorTreeExecutor } from './systems/BehaviorTreeExecutor';
 import { Entity, Transformation3D, VeilProjectManifest } from '../types';
 
 // System Interface for decoupled logic
@@ -84,6 +85,11 @@ class SimulationCore {
 
     this.runtimeEntities.clear();
     AnimationDirector.reset();
+
+    // Ensure behavior tree executor is registered as a system
+    if (!this.systems.includes(behaviorTreeExecutor)) {
+      this.registerSystem(behaviorTreeExecutor);
+    }
 
     if (manifest.timelineEvents && manifest.timelineEvents.length > 0) {
       manifest.timelineEvents.forEach(seq => AnimationDirector.playSequence(seq.id, manifest.timelineEvents));

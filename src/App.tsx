@@ -9,6 +9,8 @@ import React, { useState, useEffect } from 'react';
 import { useSpatialEditorStore } from './app/store';
 import HierarchyPanel from './components/HierarchyPanel';
 import InspectorPanel from './components/InspectorPanel';
+import BehaviorTreePanel from './components/BehaviorTreePanel';
+import AssetLibraryPanel from './components/AssetLibraryPanel';
 import SpatialCreativeCanvas from './editor/SpatialCreativeCanvas';
 import TimelineSeqEditor from './components/TimelineSeqEditor';
 import MetronomeTerminal from './components/MetronomeTerminal';
@@ -19,7 +21,7 @@ import { VeilProjectManifest } from './types';
 import {
   Play, Square, Cpu, Camera, Layers, Save, FolderOpen,
   MousePointer, Move, RotateCw, Maximize2, Palette, Sun, Moon,
-  Paintbrush, Frame, Pin, Download, Upload
+  Paintbrush, Frame, Pin, Download, Upload, GitBranch, Package
 } from 'lucide-react';
 
 export default function App() {
@@ -48,6 +50,8 @@ export default function App() {
 
   const [activeWorkspace, setActiveWorkspace] = useState<'ARTIST' | 'DEVELOPER'>('ARTIST');
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
+  const [isBehaviorTreePanelOpen, setIsBehaviorTreePanelOpen] = useState(false);
+  const [isAssetLibraryPanelOpen, setIsAssetLibraryPanelOpen] = useState(false);
 
   const [theme, setTheme] = useState<'DARK' | 'LIGHT'>(() => {
     if (typeof window !== 'undefined') {
@@ -80,6 +84,23 @@ export default function App() {
         return;
       }
 
+      // Global shortcuts (work even during simulation)
+      const key = e.key.toLowerCase();
+      
+      // Ctrl+Shift+T: Toggle Behavior Tree Panel
+      if (e.ctrlKey && e.shiftKey && key === 't') {
+        e.preventDefault();
+        setIsBehaviorTreePanelOpen(!isBehaviorTreePanelOpen);
+        return;
+      }
+      
+      // Ctrl+Shift+A: Toggle Asset Library Panel
+      if (e.ctrlKey && e.shiftKey && key === 'a') {
+        e.preventDefault();
+        setIsAssetLibraryPanelOpen(!isAssetLibraryPanelOpen);
+        return;
+      }
+
       // If the simulation is running, strictly disable editor hotkeys to prevent WASD conflicts
       if (isSimulating) {
         if (e.key === 'Escape') {
@@ -88,7 +109,6 @@ export default function App() {
         return;
       }
 
-      const key = e.key.toLowerCase();
       if (key === 'q') setToolMode('SELECT');
       else if (key === 'w') setToolMode('TRANSLATE');
       else if (key === 'e') setToolMode('ROTATE');
@@ -100,7 +120,7 @@ export default function App() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isSimulating, setToolMode, setSelectedUuid]);
+  }, [isSimulating, setToolMode, setSelectedUuid, isBehaviorTreePanelOpen, isAssetLibraryPanelOpen]);
 
   // Listen to simulation status events from core
   useEffect(() => {
@@ -499,7 +519,39 @@ export default function App() {
 
           <div className={`h-4 w-[1px] ${theme === 'LIGHT' ? 'bg-[#D1D1D6]' : 'bg-[#2D2D33]'}`} />
 
-          {/* Aspect Ratio Selector */}
+          {/* Panel Toggles */}
+          <div className={`flex border rounded overflow-hidden p-0.5 transition-colors ${
+            theme === 'LIGHT' ? 'bg-[#FFFFFF] border-[#D1D1D6]' : 'bg-[#141417] border-[#2D2D33]'
+          }`} title="Toggle panels (Ctrl+Shift+T, Ctrl+Shift+A)">
+            <button
+              onClick={() => setIsBehaviorTreePanelOpen(!isBehaviorTreePanelOpen)}
+              className={`p-1 rounded-sm transition cursor-pointer ${
+                isBehaviorTreePanelOpen
+                  ? 'bg-purple-600/20 text-purple-400 border border-purple-500/50'
+                  : theme === 'LIGHT'
+                    ? 'text-[#55555C] hover:text-[#1C1C1E] hover:bg-[#E5E5EA]'
+                    : 'text-[#A0A0AA] hover:text-white hover:bg-[#252529]'
+              }`}
+              title="Behavior Trees (Ctrl+Shift+T)"
+            >
+              <GitBranch className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setIsAssetLibraryPanelOpen(!isAssetLibraryPanelOpen)}
+              className={`p-1 rounded-sm transition cursor-pointer ${
+                isAssetLibraryPanelOpen
+                  ? 'bg-purple-600/20 text-purple-400 border border-purple-500/50'
+                  : theme === 'LIGHT'
+                    ? 'text-[#55555C] hover:text-[#1C1C1E] hover:bg-[#E5E5EA]'
+                    : 'text-[#A0A0AA] hover:text-white hover:bg-[#252529]'
+              }`}
+              title="Asset Library (Ctrl+Shift+A)"
+            >
+              <Package className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className={`h-4 w-[1px] ${theme === 'LIGHT' ? 'bg-[#D1D1D6]' : 'bg-[#2D2D33]'}`} />
           <div className={`flex border rounded overflow-hidden p-0.5 transition-colors ${
             theme === 'LIGHT' ? 'bg-[#FFFFFF] border-[#D1D1D6]' : 'bg-[#141417] border-[#2D2D33]'
           }`}
@@ -660,6 +712,18 @@ export default function App() {
           </div>
         )}
       </footer>
+
+      {/* Behavior Tree Panel Overlay */}
+      <BehaviorTreePanel 
+        isOpen={isBehaviorTreePanelOpen}
+        onClose={() => setIsBehaviorTreePanelOpen(false)}
+      />
+
+      {/* Asset Library Panel Overlay */}
+      <AssetLibraryPanel 
+        isOpen={isAssetLibraryPanelOpen}
+        onClose={() => setIsAssetLibraryPanelOpen(false)}
+      />
     </div>
   );
 }
